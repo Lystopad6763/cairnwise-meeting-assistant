@@ -13,10 +13,13 @@ import {
   FileAudio,
   HardDrive,
   Inbox,
+  Mic,
   RefreshCw,
   UploadCloud,
   X,
 } from 'lucide-react';
+
+import { RecordMeeting } from '../components/RecordMeeting';
 
 import { cn } from '../lib/cn';
 import {
@@ -592,6 +595,7 @@ function HeaderSkeleton() {
 export function ProjectDetailPage() {
   const { projectId = '' } = useParams<{ projectId: string }>();
   const project = useProject(projectId);
+  const [recording, setRecording] = useState(false);
 
   // A 404 from useProject is surfaced to the route error boundary by throwing.
   // We keep the page resilient: render header skeleton while loading, and a
@@ -674,11 +678,35 @@ export function ProjectDetailPage() {
         ))}
       </nav>
 
+      {/* Live recording CTA */}
+      {projectId && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-gradient-to-r from-brand/10 to-transparent px-4 py-3.5">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-card bg-brand/15 text-brand">
+              <Mic className="h-4.5 w-4.5" aria-hidden="true" />
+            </span>
+            <div className="leading-tight">
+              <p className="text-sm font-medium text-fg">Почати зустріч наживо</p>
+              <p className="text-xs text-muted">
+                Запис мікрофона + системного звуку у браузері — локально, без вивантаження.
+              </p>
+            </div>
+          </div>
+          <Button variant="primary" size="md" icon={Mic} onClick={() => setRecording(true)}>
+            Почати зустріч
+          </Button>
+        </div>
+      )}
+
       {/* Upload */}
       {projectId && <UploadSection projectId={projectId} />}
 
       {/* Meetings table */}
       {projectId && <MeetingsSection projectId={projectId} />}
+
+      {recording && projectId && (
+        <RecordMeeting projectId={projectId} onClose={() => setRecording(false)} />
+      )}
     </div>
   );
 }
