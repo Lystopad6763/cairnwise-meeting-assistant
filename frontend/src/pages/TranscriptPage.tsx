@@ -30,9 +30,11 @@ import {
   StatusBadge,
   useToast,
 } from '../components/ui';
-import type { MeetingOut, Segment, TranscriptOut } from '../types';
+import type { MeetingOut, Segment, SpeakerLabels, TranscriptOut } from '../types';
 
-import { SummaryPlaceholder } from './_SummaryPlaceholder';
+import { SpeakerRelabel } from '../components/SpeakerRelabel';
+import { SummaryRail } from '../components/SummaryRail';
+import { displaySpeaker } from '../lib/summary';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -277,9 +279,11 @@ function TranscriptMeta({ transcript }: { transcript: TranscriptOut }) {
 function SpeakerLegend({
   speakers,
   counts,
+  labels,
 }: {
   speakers: string[];
   counts: Record<string, number>;
+  labels: SpeakerLabels;
 }) {
   if (speakers.length === 0) return null;
   return (
@@ -297,7 +301,7 @@ function SpeakerLegend({
               style={{ backgroundColor: tok.dot }}
               aria-hidden="true"
             />
-            <span className="font-medium text-fg">{label}</span>
+            <span className="font-medium text-fg">{displaySpeaker(labels, label)}</span>
             <span className="tabular-nums text-muted">
               {counts[label] ?? 0} реплік
             </span>
@@ -316,10 +320,12 @@ function SegmentRow({
   segment,
   index,
   collapsedHeader,
+  labels,
 }: {
   segment: Segment;
   index: number;
   collapsedHeader: boolean;
+  labels: SpeakerLabels;
 }) {
   const tok = speakerToken(segment.speaker);
   return (
@@ -352,7 +358,7 @@ function SegmentRow({
               className="text-xs font-semibold"
               style={{ color: tok.text }}
             >
-              {segment.speaker}
+              {displaySpeaker(labels, segment.speaker)}
             </span>
           </div>
         )}
@@ -370,6 +376,7 @@ function SegmentRow({
 
 function TranscriptViewer({ transcript }: { transcript: TranscriptOut }) {
   const { segments } = transcript;
+  const labels = transcript.speaker_labels ?? {};
   const speakers = useMemo(() => distinctSpeakers(segments), [segments]);
   const counts = useMemo(() => replyCounts(segments), [segments]);
 
@@ -377,7 +384,13 @@ function TranscriptViewer({ transcript }: { transcript: TranscriptOut }) {
     <div className="flex flex-col gap-4">
       <TranscriptMeta transcript={transcript} />
 
-      <SpeakerLegend speakers={speakers} counts={counts} />
+      <SpeakerLegend speakers={speakers} counts={counts} labels={labels} />
+
+      <SpeakerRelabel
+        meetingId={transcript.meeting_id}
+        speakers={speakers}
+        labels={labels}
+      />
 
       <Card className="p-4">
         <div className="mb-3 flex items-center gap-2">
@@ -402,6 +415,7 @@ function TranscriptViewer({ transcript }: { transcript: TranscriptOut }) {
                   segment={seg}
                   index={i}
                   collapsedHeader={collapsed}
+                  labels={labels}
                 />
               );
             })}
@@ -617,9 +631,9 @@ export function TranscriptPage() {
         <LeftColumn meetingId={meetingId} />
       </div>
 
-      {/* RIGHT — future AI Summary rail (disabled placeholder) */}
+      {/* RIGHT — AI Summary rail (Агент-2, Фаза 7) */}
       <div className="lg:sticky lg:top-6 lg:self-start">
-        <SummaryPlaceholder />
+        <SummaryRail meetingId={meetingId} />
       </div>
     </div>
   );
