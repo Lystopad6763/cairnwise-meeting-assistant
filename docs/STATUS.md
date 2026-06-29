@@ -11,7 +11,7 @@
 
 ## 🔧 Реалізовано (код готовий, у складі MVP)
 
-- **Per-project памʼять (ingestion):** транскрипт → speaker/gap-aware чанки → embeddings **bge-m3** → **Qdrant з ізоляцією за `project_id`** (памʼять одного проєкту не бачить інші); сутності (**action items, рішення**) з цитатами → Postgres. Інжестія **ідемпотентна** (delete-then-write + детермінований `uuid5`-id точок).
+- **Per-project памʼять (ingestion):** транскрипт → speaker/gap-aware чанки → embeddings **bge-m3** → **Qdrant з ізоляцією за `project_id`** (памʼять одного проєкту не бачить інші); сутності (**action items, рішення**) з цитатами → Postgres. Інжестія **ідемпотентна** (delete-then-write + детермінований `uuid5`-id точок). **Перевірено наскрізно** на m05 (493 сегменти → 48 чанків у Qdrant; 3 action-items + 10 decisions у Postgres — [eval/results/phase4_e2e.md](../eval/results/phase4_e2e.md)); **ізоляцію** доводить виконуваний `scripts/check_isolation.py` (PASS: count / search / delete не перетинають межу `project_id`).
 - **Прототип резюме (Агент-2):** діаризований транскрипт → структуроване резюме з **grounding**, **цитатами на конкретні репліки `[#N]`** і **confidence → HITL-гейтом** (≥0.85 авто-апрув / 0.6–0.85 ревʼю / <0.6 reject). Локальна LLM (Ollama) або, опційно, OpenAI для «непублічних» зустрічей.
 
 ## 🗺️ Дорожня карта (наступні фази)
