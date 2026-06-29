@@ -22,14 +22,16 @@ Cairnwise перетворює живу зустріч на структуров
 |---|---|
 | Проєкти як first-class сутність (ізоляція памʼяті) | ✅ |
 | Завантаження зустрічі (mp4/wav/…) + **consent-гейт** (legal) | ✅ |
+| **Запис «живої» зустрічі у браузері**: мікрофон + системний звук (інша сторона дзвінка) → webm, локально | ✅ |
 | **STT + діаризація** у потоці (черга → host-GPU воркер) → діаризований JSON `[{speaker,start,end,text}]` | ✅ |
-| Веб-інтерфейс (React SPA): проєкти, upload, live-статус, перегляд транскрипту | ✅ |
+| **Підписи спікерів** (relabel): «Speaker N» → імʼя+роль; застосовуються в транскрипті й резюме | ✅ |
+| Веб-інтерфейс (React SPA): проєкти, upload/запис, live-статус, перегляд транскрипту | ✅ |
 | **Per-project RAG-памʼять**: чанки → bge-m3 → Qdrant (namespace=project_id) + сутності (action items, рішення) → Postgres | ✅ |
-| Прототип резюме (grounding + цитати `[#N]` + confidence → HITL-гейт), локальний LLM | ✅ |
+| **Резюме (Агент-2)**: grounded + цитати `[#N]` + confidence → HITL-гейт; рушій **local (Ollama) / cloud (OpenAI)** за приватністю | ✅ |
 | Гібридний retrieval (BM25+dense) + reranker + `/ask` з абстенцією | 🚧 наступне |
 | Агент (ReAct + tools, LangGraph) + черга апрувів (Jira/Slack) | 🚧 |
 
-Архітектурні деталі — у [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); інженерні рішення й граблі — у [docs/CHALLENGES.md](docs/CHALLENGES.md). Короткий roadmap — у розділі «Статус» нижче.
+Архітектурні деталі — у [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); інженерні рішення й граблі — у [docs/CHALLENGES.md](docs/CHALLENGES.md); порівняння моделей — у [MODELS.md](MODELS.md); план далі — у [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ---
 
@@ -42,7 +44,7 @@ Cairnwise перетворює живу зустріч на структуров
                                              │ REST (CORS)
             ┌────────────────────────────────▼────────────────────────────┐
             │  FastAPI (контейнер, :8000) — CPU-only, БЕЗ torch            │
-            │  /health · projects · meetings · transcript · memory         │
+            │  /health·projects·meetings·transcript·relabel·summary·memory │
             └──────┬───────────────────────┬──────────────────────┬───────┘
                    │ enqueue (Redis)        │ SQLAlchemy           │ qdrant-client
             ┌──────▼──────┐         ┌───────▼────────┐      ┌──────▼──────┐
@@ -54,8 +56,9 @@ Cairnwise перетворює живу зустріч на структуров
        │  HOST .venv (GPU)     │      ▲                          ▲
        │  ── STT-воркер ───────┼──────┘ діаризований транскрипт  │
        │     whisperX + pyannote                                 │
-       │  ── Ingest-воркер ────┼────── чанки + сутності ─────────┘
+       │  ── Ingest (ingest.py)┼────── чанки + сутності ─────────┘
        │     bge-m3 + Ollama                                      
+       │  ── Summary-воркер ───┼────── grounded summary + HITL (Ollama / OpenAI)
        └────────────────────────────────────────────────────────┘
 ```
 
@@ -113,19 +116,24 @@ curl http://localhost:8000/health        # має бути {"status":"ok", ...}
 cd frontend && npm install && npm run dev   # → http://localhost:5173
 ```
 
-### 4. Host-воркери (STT + інжестія, потребують GPU/моделей)
+### 4. Host-воркери (GPU/моделі) — **мають працювати, інакше задачі застрягають у черзі**
 ```bash
 python -m venv .venv && .venv\Scripts\activate
 pip install -r requirements-ingest.txt
 python scripts/download_models.py --small        # bge-m3, pyannote, whisper
-python scripts/worker.py            # STT: черга → діаризований транскрипт
-python scripts/ingest_worker.py     # RAG: транскрипт → Qdrant + Postgres
-```
+ollama pull neural-chat                           # локальний рушій резюме
 
-### 5. (опц.) Локальне резюме
+# два довгоживучі процеси (кожен у своєму терміналі):
+python scripts/worker.py            # STT: черга → діаризований транскрипт
+python scripts/summary_worker.py    # резюме: черга → grounded summary + HITL
+```
+> ⚠️ Транскрипція й резюме виконуються на host-воркерах (API лише ставить у Redis-чергу). Якщо
+> воркер не запущено, зустріч лишається «У черзі» без дій.
+
+### 5. (опц.) Інжест у per-project памʼять
 ```bash
-ollama pull neural-chat
-python scripts/summarize.py --meeting <id>
+python scripts/ingest.py --meeting <id>     # або --project <slug> / --all
+python scripts/check_isolation.py           # довести namespace-ізоляцію (PASS)
 ```
 
 Зручні скорочення — у [Makefile](Makefile) (`make up`, `make front`, `make worker`).

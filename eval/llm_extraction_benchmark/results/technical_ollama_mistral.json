@@ -1,0 +1,39 @@
+{
+  "summary": "Discussed the sync for microservice migration and decided on refactoring auth-service from monolithic architecture to JWT + OAuth2.0, setting up CI/CD pipeline in GitHub Actions for automatic deployment on staging, conducting load testing with k6 for endpoint /api/v2/users (needing to handle 10k RPS), documenting OpenAPI spec for new endpoints after refactoring, setting up monitoring through Prometheus + Grafana for new services.",
+  "tasks": [
+    {
+      "owner": "Дмитро",
+      "task": "Refactor auth-service from monolithic architecture to JWT + OAuth2.0",
+      "deadline": "14 травня"
+    },
+    {
+      "owner": "Катерина",
+      "task": "Set up CI/CD pipeline in GitHub Actions for automatic deployment on staging",
+      "deadline": "11 травня"
+    },
+    {
+      "owner": "Василь",
+      "task": "Conduct load testing with k6 for endpoint /api/v2/users (needing to handle 10k RPS)",
+      "deadline": "13 травня"
+    },
+    {
+      "owner": "Дмитро",
+      "task": "Document OpenAPI spec for new endpoints after refactoring",
+      "deadline": "16 травня"
+    },
+    {
+      "owner": "Катерина",
+      "task": "Set up monitoring through Prometheus + Grafana for new services",
+      "deadline": "18 травня"
+    }
+  ],
+  "decisions": [
+    "Transition to gRPC for internal communication between services",
+    "Keep PostgreSQL and add Redis for session caching",
+    "Deploy all new services in a Kubernetes cluster"
+  ],
+  "_latency": 63.62,
+  "_valid_json": true,
+  "_tokens": 426,
+  "_cost": 0
+}

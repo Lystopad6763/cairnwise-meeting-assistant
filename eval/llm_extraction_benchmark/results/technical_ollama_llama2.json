@@ -1,0 +1,7 @@
+{
+  "_valid_json": false,
+  "_latency": 55.71,
+  "_tokens": 394,
+  "_cost": 0,
+  "_raw": "Here is the structured information extracted from the text:\n\n* Summary: A meeting took place where several tasks and decisions were discussed.\n* Tasks:\n\t+ Refactor microservice architecture using JWT and OAuth2.0 (deadline: May 14th)\n\t+ Refactor authentication service monolithic architecture (deadli"
+}

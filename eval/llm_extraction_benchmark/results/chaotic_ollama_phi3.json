@@ -1,0 +1,7 @@
+{
+  "_valid_json": false,
+  "_latency": 33.09,
+  "_tokens": 460,
+  "_cost": 0,
+  "_raw": "{\n  \"summary\": {\n    \"participants\": [\n      {\"Иван\": {\"task_started\": true, \"last_update\": null}},\n      {\"Анна\": {\"mentions_designer\": false, \"scheduled_meeting\": \"9 травня 15 хвилин\"}},\n      {\"Мартин\": {\"project_status\": \"входить до lançamento\", \"current_issue\": \" проблемо з авторизації\", \"deadl"
+}

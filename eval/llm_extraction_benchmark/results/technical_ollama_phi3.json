@@ -1,0 +1,7 @@
+{
+  "_valid_json": false,
+  "_latency": 24.85,
+  "_tokens": 300,
+  "_cost": 0,
+  "_raw": "{\n  \"summary\": \"Перевантажу нових сервісів в контексте монолітної архітектури на JWT + OAuth2.table = [{\"owner\":\"Дмитро\", \"task\":\"Рефакторити auth-service з монолітною архітектурою на JWT + OAuth2.0.\",\"deadline\":null}, {\"owner\":\"Катерина\", \"task\":\"Налаштуй CI/CD pipeline в GitHub Actions для автомат"
+}

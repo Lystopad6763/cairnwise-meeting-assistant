@@ -1,0 +1,28 @@
+{
+  "summary": "Meeting notes",
+  "tasks": [
+    {
+      "owner": "Anna",
+      "task": "finish design by May 9th",
+      "deadline": "May 9th"
+    },
+    {
+      "owner": "Martin",
+      "task": "fix API bug by May 11th",
+      "deadline": "May 11th"
+    },
+    {
+      "owner": "Olga",
+      "task": "complete testing by May 13th",
+      "deadline": "May 13th"
+    }
+  ],
+  "decisions": [
+    "use React without jQuery",
+    "deploy on AWS"
+  ],
+  "_latency": 45.53,
+  "_valid_json": true,
+  "_tokens": 330,
+  "_cost": 0
+}

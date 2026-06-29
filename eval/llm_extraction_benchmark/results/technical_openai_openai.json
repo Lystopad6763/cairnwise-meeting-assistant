@@ -1,0 +1,39 @@
+{
+  "summary": "Почали синк по мікросервісній міграції.",
+  "tasks": [
+    {
+      "owner": "Дмитро",
+      "task": "рефакторити auth-service з монолітної архітектури на JWT + OAuth2.0",
+      "deadline": "2023-05-14"
+    },
+    {
+      "owner": "Катерина",
+      "task": "налаштуй CI/CD pipeline в GitHub Actions для автоматичного деплою на staging",
+      "deadline": "2023-05-11"
+    },
+    {
+      "owner": "Василь",
+      "task": "проведи load testing з k6 для endpoint /api/v2/users — потрібно витримати 10k RPS",
+      "deadline": "2023-05-13"
+    },
+    {
+      "owner": "Дмитро",
+      "task": "задокументуй OpenAPI spec для нових endpoints після рефакторингу",
+      "deadline": "2023-05-16"
+    },
+    {
+      "owner": "Катерина",
+      "task": "налаштуй моніторинг через Prometheus + Grafana для нових сервісів",
+      "deadline": "2023-05-18"
+    }
+  ],
+  "decisions": [
+    "Переходимо з REST на gRPC для внутрішньої комунікації між сервісами",
+    "PostgreSQL залишаємо, Redis додаємо для кешування сесій",
+    "Всі нові сервіси розгортаємо в Kubernetes кластері"
+  ],
+  "_latency": 6.36,
+  "_valid_json": true,
+  "_tokens": 347,
+  "_cost": 0.000118
+}

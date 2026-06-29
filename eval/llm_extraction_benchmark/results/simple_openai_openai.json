@@ -1,0 +1,29 @@
+{
+  "summary": "Сьогодні обговорюємо розробку нового dashboard для аналітики продажів.",
+  "tasks": [
+    {
+      "owner": "Іван",
+      "task": "дизайн UI prototype",
+      "deadline": "10 травня"
+    },
+    {
+      "owner": "Мартин",
+      "task": "backend API для користувачів",
+      "deadline": "15 травня"
+    },
+    {
+      "owner": "Оля",
+      "task": "технічна документація",
+      "deadline": "12 травня"
+    }
+  ],
+  "decisions": [
+    "Використовуємо React для frontend",
+    "Код review обов'язковий перед кожним merge",
+    "Дедлайн релізу — 20 травня"
+  ],
+  "_latency": 6.62,
+  "_valid_json": true,
+  "_tokens": 212,
+  "_cost": 6.6e-05
+}

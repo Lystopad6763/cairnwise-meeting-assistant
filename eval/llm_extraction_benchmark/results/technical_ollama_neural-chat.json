@@ -1,0 +1,39 @@
+{
+  "summary": "Розпочали синхронне керування мікросервісної міграцією. Планувалися такі завдання:",
+  "tasks": [
+    {
+      "owner": "Дмитро",
+      "task": "Перетворити auth-service на JWT + OAuth2.0.",
+      "deadline": "14 травня"
+    },
+    {
+      "owner": "Катерина",
+      "task": "Налаштувати CI/CD pipeline в GitHub Actions для автоматичного деплою на staging.",
+      "deadline": "11 травня"
+    },
+    {
+      "owner": "Василь",
+      "task": "Зробити load testing з k6 для endpoint /api/v2/users з показником 10k RPS.",
+      "deadline": "13 травня"
+    },
+    {
+      "owner": "Дмитро",
+      "task": "Задокументувати OpenAPI spec для нових endpoints після рефакторингу.",
+      "deadline": "16 травня"
+    },
+    {
+      "owner": "Катерина",
+      "task": "Налаштувати моніторинг через Prometheus + Grafana для нових сервісів.",
+      "deadline": "18 травня"
+    }
+  ],
+  "decisions": [
+    "Переходимо з REST на gRPC для внутрішньої комунікації між сервісами",
+    "Використовувати PostgreSQL, залишаючись PostgreSQL і додати Redis для кешування сесій",
+    "Розгортати усі нові сервіси в Kubernetes кластері"
+  ],
+  "_latency": 64.7,
+  "_valid_json": true,
+  "_tokens": 353,
+  "_cost": 0
+}

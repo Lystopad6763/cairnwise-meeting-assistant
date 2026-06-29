@@ -9,9 +9,14 @@
                   → pyannote-3.1 діаризує («хто що сказав») → align timestamps
                   → Transcript [{speaker,start,end,text}] у Postgres → status=transcribed
                   → LPUSH cairnwise:ingest
-3. INGEST      Ingest-воркер (host): BRPOP → chunker (speaker/gap-aware) → bge-m3 embed
+3. INGEST      Ingest (host, scripts/ingest.py): chunker (speaker/gap-aware) → bge-m3 embed
                   → Qdrant (namespace=project_id) + entities (action items/рішення) → Postgres
                   → status=ingested
+3b. RELABEL    POST /meetings/{id}/relabel → «Speaker N» → {імʼя, роль} у transcripts.speaker_labels
+                  (недеструктивно; застосовується і в показі, і в резюме)
+3c. SUMMARIZE  POST /meetings/{id}/summarize → LPUSH cairnwise:summarize → Summary-воркер (host):
+                  relabel-імена → grounded summary + дії/рішення/ризики з [#N] + confidence→HITL
+                  → summaries (status ready/failed). Рушій: local (Ollama) / cloud (OpenAI) за приватністю
 4. RETRIEVE    /ask → hybrid (BM25+dense) → reranker → LLM з grounding+citations+abstention  [🚧]
 5. ACT         Агент пропонує дії (Jira/Slack) → черга апрувів → людина апрувить → executor  [🚧]
 ```
@@ -22,11 +27,12 @@
 Тонкий оркестратор. **Не містить torch.** Уміє: CRUD проєктів/зустрічей, приймати upload (з consent-гейтом), віддавати транскрипт, рахувати статистику памʼяті, і **ставити задачі в Redis-черги**. Важку ML-роботу не виконує сам — делегує воркерам. Образ ~250 МБ (multi-stage Dockerfile, non-root).
 
 ### Host-воркери (`.venv`, GPU)
-Два довгоживучі процеси, що споживають Redis-черги:
-- **STT-воркер** (`scripts/worker.py`) — whisperX + pyannote. Завантажує моделі раз на старті.
-- **Ingest-воркер** (`scripts/ingest_worker.py`) — bge-m3 embedder + chunker + запис у Qdrant/Postgres.
+Довгоживучі процеси, що споживають Redis-черги (запускаються в окремих терміналах):
+- **STT-воркер** (`scripts/worker.py`) — whisperX + pyannote, черга `cairnwise:transcribe`. Завантажує моделі раз на старті.
+- **Summary-воркер** (`scripts/summary_worker.py`) — черга `cairnwise:summarize`; relabel-імена → grounded summary через Ollama (local) або OpenAI (cloud).
+- **Ingest** (`scripts/ingest.py`) — bge-m3 embedder + chunker + запис у Qdrant/Postgres. Наразі CLI/one-shot (`--meeting/--project/--all`), не довгоживуча черга.
 
-Чому host, а не контейнер: GPU живе на хості; torch/whisperX/bge-m3 надто важкі для образу API; STT/ingest довгі — їх не можна тримати в HTTP-запиті.
+Чому host, а не контейнер: GPU живе на хості; torch/whisperX/bge-m3 надто важкі для образу API; локальна LLM ходить у host-Ollama (:11434), якого CPU-only контейнер не дістає; ці кроки довгі — їх не можна тримати в HTTP-запиті. **Якщо воркер не запущено — задача лишається у черзі без дій.**
 
 ### Сховища
 - **Postgres** — структуровані сутності: `projects`, `meetings`, `transcripts` (JSONB-сегменти), `action_items`, `decisions`. Майбутнє: `approvals`, Text-to-SQL.

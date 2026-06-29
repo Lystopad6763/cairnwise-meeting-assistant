@@ -1,0 +1,29 @@
+{
+  "summary": "Meeting Minutes",
+  "tasks": [
+    {
+      "owner": "Anna",
+      "task": "Design UI prototype (Deadline: May 10)",
+      "deadline": "May 10"
+    },
+    {
+      "owner": "Martin",
+      "task": "Develop backend API for users (Deadline: May 15)",
+      "deadlin": "May 15"
+    },
+    {
+      "owner": "Olga",
+      "task": "Prepare technical documentation (Deadline: May 12)",
+      "deadlin": "May 12"
+    }
+  ],
+  "decisions": [
+    "Use React for frontend",
+    "Code review required before merging",
+    "Release date: May 20"
+  ],
+  "_latency": 39.76,
+  "_valid_json": true,
+  "_tokens": 221,
+  "_cost": 0
+}

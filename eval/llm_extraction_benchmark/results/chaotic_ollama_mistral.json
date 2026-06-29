@@ -1,0 +1,7 @@
+{
+  "_valid_json": false,
+  "_latency": 39.18,
+  "_tokens": 336,
+  "_cost": 0,
+  "_raw": " {\n  \"summary\": \"Anna discussed design, API completion, testing, presentation for the client, and decided on using AWS for deployment.\",\n  \"tasks\": [\n    {\"owner\": \"Іван\", \"task\": \"Допрацювати дизайн до п'ятниці\"},\n    {\"owner\": \"Мартин\", \"task\": \"Виправити баг з авторизації до 11 травня (приблизно)"
+}
