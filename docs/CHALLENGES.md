@@ -50,6 +50,12 @@
 **Фікс.** Чіткий шов: `app/rag/{chunker,vector_store,schema,entities}` — **torch-free** (імпортовні в CPU-контейнері для read-path), а `app/rag/embedder` (torch+FlagEmbedding) імпортується **лише ліниво** на хості. Образ API лишається ~250 МБ.
 **Урок.** Проводь межу torch/не-torch на рівні модулів — це дозволяє одному пакету жити і в контейнері, і на хості.
 
+### 9. Колізія VRAM на інжесті: bge-m3 + neural-chat не вміщаються разом у 4GB
+**Проблема.** Перший наскрізний прогін `ingest.py` падав на витяганні сутностей: `HTTPError 500` від Ollama — embedding (48 чанків) уже відпрацював, але крок LLM валився.
+**Діагноз.** `ingest_meeting()` тримає `Embedder` (bge-m3, ~2 GB VRAM) резидентним на весь run, а далі в тому ж процесі кличе Ollama, який намагається підняти `neural-chat` (Q4_0, ~4 GB) на **той самий 4 GB GPU** → сумарно > 4 GB → Ollama повертає 500. Перевірено ізольовано: з вивантаженим bge-m3 той самий промпт (`num_ctx=8192`, ~15k символів) відпрацьовує штатно (3.6 GB VRAM, валідний JSON). Тобто причина — **co-residency двох моделей**, а не розмір контексту.
+**Фікс.** На 4 GB одна з моделей має звільнити GPU: або стартувати інжест із чистого GPU (тоді Ollama офлоудить частину шарів на CPU й вкладається — наскрізний прогін: 48 чанків → 3 action-items + 10 decisions, 474 с), або embed на CPU (`--device cpu`), лишивши GPU під LLM. Той самий принцип «не тримати дві моделі на GPU одночасно», що й для STT↔LLM.
+**Урок.** На малому GPU embed-крок інжесту й LLM-крок — це теж пара, що конкурує за VRAM; на проді ingest-воркер має або тримати embedder на CPU, або явно звільняти VRAM перед викликом LLM.
+
 ### Інші дрібніші
 - **HF symlink `WinError 1314`** на Windows без Developer Mode → monkeypatch `are_symlinks_supported → False` (hub копіює замість symlink).
 - **whisperx 3.8.6** змінив API: `DiarizationPipeline(token=...)` замість `use_auth_token=`.
