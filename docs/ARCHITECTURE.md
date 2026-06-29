@@ -65,8 +65,9 @@ app/rag/
 ```
 projects (id, slug, name, description, created_at)
   └─ meetings (id, project_id→, title, stored_path, consent, status, error, created_at)
-       ├─ transcripts (meeting_id→ unique, segments JSONB, model, diarizer, num_speakers, duration_s)
+       ├─ transcripts (meeting_id→ unique, segments JSONB, speaker_labels JSONB, model, diarizer, num_speakers, duration_s)
        ├─ action_items (project_id→, meeting_id→, owner, task, deadline, citations JSONB, confidence)
-       └─ decisions (project_id→, meeting_id→, decision, citations JSONB, confidence)
+       ├─ decisions (project_id→, meeting_id→, decision, citations JSONB, confidence)
+       └─ summaries (meeting_id→ unique, project_id→, summary, action_items/decisions/risks JSONB, confidence, engine, status, error)
 ```
 `status`: `uploaded → transcribing → transcribed → ingesting → ingested` (або `failed` із `error`).
