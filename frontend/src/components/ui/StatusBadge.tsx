@@ -31,6 +31,18 @@ export const STATUS_META: Record<
     dotClass: 'bg-status-transcribed',
     icon: CheckCircle2,
   },
+  ingesting: {
+    label: 'Індексуємо…',
+    tone: 'warning',
+    dotClass: 'bg-status-transcribing animate-pulseDot',
+    icon: Loader2,
+  },
+  ingested: {
+    label: 'У памʼяті',
+    tone: 'success',
+    dotClass: 'bg-status-transcribed',
+    icon: CheckCircle2,
+  },
   failed: {
     label: 'Помилка',
     tone: 'danger',

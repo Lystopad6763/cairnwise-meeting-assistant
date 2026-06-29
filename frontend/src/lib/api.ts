@@ -4,6 +4,9 @@ import type {
   MeetingOut,
   ProjectIn,
   ProjectOut,
+  SummaryEngine,
+  SummaryOut,
+  SpeakerLabels,
   TranscriptOut,
   UploadMeetingInput,
 } from '../types';
@@ -232,6 +235,28 @@ export const api = {
 
   getTranscript(meetingId: string): Promise<TranscriptOut> {
     return apiFetch<TranscriptOut>(`/meetings/${encodeURIComponent(meetingId)}/transcript`);
+  },
+
+  // Підписати спікерів іменами/ролями (недеструктивно). Повертає оновлений транскрипт.
+  relabel(meetingId: string, labels: SpeakerLabels): Promise<TranscriptOut> {
+    return apiFetch<TranscriptOut>(`/meetings/${encodeURIComponent(meetingId)}/relabel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ labels }),
+    });
+  },
+
+  // Поставити (пере)генерацію резюме в чергу. Рушій: local (Ollama) / cloud (OpenAI).
+  requestSummary(meetingId: string, engine: SummaryEngine): Promise<SummaryOut> {
+    return apiFetch<SummaryOut>(`/meetings/${encodeURIComponent(meetingId)}/summarize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ engine }),
+    });
+  },
+
+  getSummary(meetingId: string): Promise<SummaryOut> {
+    return apiFetch<SummaryOut>(`/meetings/${encodeURIComponent(meetingId)}/summary`);
   },
 };
 

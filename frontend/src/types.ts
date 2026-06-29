@@ -1,5 +1,11 @@
 // ---- API contract (matches FastAPI exactly) ----
-export type MeetingStatus = 'uploaded' | 'transcribing' | 'transcribed' | 'failed';
+export type MeetingStatus =
+  | 'uploaded'
+  | 'transcribing'
+  | 'transcribed'
+  | 'ingesting'
+  | 'ingested'
+  | 'failed';
 
 export interface HealthOut {
   status: 'ok' | 'degraded';
@@ -41,6 +47,13 @@ export interface Segment {
   text: string;
 }
 
+/** Relabel: original speaker token → display name + role. */
+export interface SpeakerLabel {
+  name: string;
+  role: string;
+}
+export type SpeakerLabels = Record<string, SpeakerLabel>;
+
 export interface TranscriptOut {
   meeting_id: string;
   language: string | null;
@@ -51,6 +64,7 @@ export interface TranscriptOut {
   duration_s: number;
   compute_secs: number | null;
   segments: Segment[];
+  speaker_labels: SpeakerLabels;
   created_at: string;
 }
 
@@ -59,7 +73,11 @@ export const ALLOWED_EXT = ['.wav', '.mp4', '.m4a', '.mp3', '.webm', '.ogg', '.f
 export type AllowedExt = (typeof ALLOWED_EXT)[number];
 
 // Non-terminal statuses that should keep polling
-export const ACTIVE_STATUSES: readonly MeetingStatus[] = ['uploaded', 'transcribing'];
+export const ACTIVE_STATUSES: readonly MeetingStatus[] = [
+  'uploaded',
+  'transcribing',
+  'ingesting',
+];
 
 // Upload form input (UI-side)
 export interface UploadMeetingInput {
@@ -77,15 +95,37 @@ export interface Citation {
   quote?: string;
 }
 
-export type SummaryStatus = 'draft' | 'awaiting_review' | 'approved' | 'rejected';
+// ---- Summary (Агент-2, Фаза 7) — real backend contract ----
+export type SummaryEngine = 'local' | 'cloud';      // приватність зустрічі -> рушій
+export type SummaryJobStatus = 'pending' | 'ready' | 'failed';
+
+export interface ActionItemOut {
+  owner?: string | null;
+  task?: string;
+  deadline?: string | null;
+  citations?: number[];
+}
+export interface DecisionOut {
+  decision?: string;
+  citations?: number[];
+}
+export interface RiskOut {
+  item?: string;
+  citations?: number[];
+}
 
 export interface SummaryOut {
   meeting_id: string;
-  markdown: string;
-  citations: Citation[];
-  confidence: number;
-  status: SummaryStatus;
-  created_at: string;
+  project_id: string;
+  summary: string;
+  action_items: ActionItemOut[];
+  decisions: DecisionOut[];
+  risks: RiskOut[];
+  confidence: number | null;
+  engine: string | null;              // "local:neural-chat" / "cloud:gpt-4o-mini"
+  status: SummaryJobStatus;
+  error: string | null;
+  updated_at: string;
 }
 
 export type ApprovalKind = 'jira' | 'slack';

@@ -16,6 +16,9 @@ import {
   type MeetingStatus,
   type ProjectIn,
   type ProjectOut,
+  type SpeakerLabels,
+  type SummaryEngine,
+  type SummaryOut,
   type TranscriptOut,
   type UploadMeetingInput,
 } from '../types';
@@ -113,6 +116,8 @@ export function useTranscribe(meetingId: string): UseMutationResult<MeetingOut, 
 }
 
 // ---------------------------------------------------------------- transcript (gated on status; 404 = not-ready)
+// staleTime drop: транскрипт майже незмінний, АЛЕ relabel оновлює speaker_labels на тому ж
+// записі, тож тримаємо помірний staleTime і інвалідуємо вручну з useRelabel (нижче).
 export function useTranscript(
   meetingId: string,
   status: MeetingStatus | undefined,
@@ -120,9 +125,50 @@ export function useTranscript(
   return useQuery<TranscriptOut, ApiError>({
     queryKey: qk.transcript(meetingId),
     queryFn: () => api.getTranscript(meetingId),
-    enabled: status === 'transcribed',
+    // транскрипт доступний у будь-якому пост-transcribed стані (ingesting/ingested теж)
+    enabled: status === 'transcribed' || status === 'ingesting' || status === 'ingested',
     retry: false,
-    staleTime: Infinity, // transcript is immutable once produced
+    staleTime: 60_000,
+  });
+}
+
+// ---------------------------------------------------------------- relabel (підписи спікерів)
+export function useRelabel(
+  meetingId: string,
+): UseMutationResult<TranscriptOut, ApiError, SpeakerLabels> {
+  const qc = useQueryClient();
+  return useMutation<TranscriptOut, ApiError, SpeakerLabels>({
+    mutationFn: (labels) => api.relabel(meetingId, labels),
+    onSuccess: (updated) => {
+      qc.setQueryData(qk.transcript(meetingId), updated);   // миттєво показуємо нові підписи
+    },
+  });
+}
+
+// ---------------------------------------------------------------- summary: request (enqueue) + poll
+export function useRequestSummary(
+  meetingId: string,
+): UseMutationResult<SummaryOut, ApiError, SummaryEngine> {
+  const qc = useQueryClient();
+  return useMutation<SummaryOut, ApiError, SummaryEngine>({
+    mutationFn: (engine) => api.requestSummary(meetingId, engine),
+    onSuccess: (summ) => {
+      qc.setQueryData(qk.summary(meetingId), summ);          // одразу pending -> запускає polling
+    },
+  });
+}
+
+// Опитуємо доки рушій працює (status=pending). 404 (ще не генерували) -> не ретраїмо.
+export function useSummary(
+  meetingId: string,
+  enabled = true,
+): UseQueryResult<SummaryOut, ApiError> {
+  return useQuery<SummaryOut, ApiError>({
+    queryKey: qk.summary(meetingId),
+    queryFn: () => api.getSummary(meetingId),
+    enabled: !!meetingId && enabled,
+    retry: (_count, err) => err.status !== 404,              // 404 = ще не запитували
+    refetchInterval: (q) => (q.state.data?.status === 'pending' ? 3000 : false),
   });
 }
 

@@ -114,6 +114,8 @@ function StatusPanel({ meeting }: { meeting: MeetingOut }) {
     transcribing:
       'Розпізнаємо мовлення та розділяємо за спікерами. Це може зайняти кілька хвилин залежно від тривалості запису.',
     transcribed: 'Готово.',
+    ingesting: 'Індексуємо зустріч у памʼять проєкту…',
+    ingested: 'Зустріч у памʼяті проєкту.',
     failed:
       'Під час транскрипції сталася помилка. Можна перезапустити обробку нижче.',
   };
@@ -539,17 +541,19 @@ function LeftColumn({ meetingId }: { meetingId: string }) {
 
   if (!data) return null;
 
+  // Транскрипт існує у будь-якому пост-transcribed стані (ingesting/ingested теж).
+  const hasTranscript =
+    status === 'transcribed' || status === 'ingesting' || status === 'ingested';
+
   // Worker race: meeting says transcribed but transcript endpoint 404s.
   const transcriptNotReady =
-    status === 'transcribed' &&
-    transcript.isError &&
-    transcript.error.status === 404;
+    hasTranscript && transcript.isError && transcript.error.status === 404;
 
   return (
     <div className="flex flex-col gap-5">
       <MeetingHeader meeting={data} />
 
-      {status !== 'transcribed' ? (
+      {!hasTranscript ? (
         <StatusPanel meeting={data} />
       ) : transcript.isLoading ? (
         <LeftSkeleton />

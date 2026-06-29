@@ -5,7 +5,7 @@ export const qk = {
   meetings: (pid: string) => ['projects', pid, 'meetings'] as const,
   meeting: (mid: string) => ['meetings', mid] as const,
   transcript: (mid: string) => ['meetings', mid, 'transcript'] as const,
+  summary: (mid: string) => ['meetings', mid, 'summary'] as const,
   // FUTURE (reserved):
-  // summary:   (mid: string) => ['meetings', mid, 'summary'] as const,
   // approvals: (pid: string) => ['projects', pid, 'approvals'] as const,
 };
