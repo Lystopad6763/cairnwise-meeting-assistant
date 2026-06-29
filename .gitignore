@@ -60,6 +60,8 @@ config.yaml
 # скомпільовані vite-конфіги (артефакти tsc, не вихідний код)
 frontend/vite.config.js
 frontend/vite.config.d.ts
+# інкрементальний кеш tsc (build-артефакт, змінюється на кожну збірку)
+*.tsbuildinfo
 
 # --- Завантажені/записані зустрічі (bind-mount, важке аудіо) ---
 data/uploads/
