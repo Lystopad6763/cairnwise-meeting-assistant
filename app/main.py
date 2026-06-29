@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from datetime import datetime
+from typing import Literal
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,8 +17,16 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import engine, get_db, init_db
-from app.jobs import enqueue_transcription
-from app.models import ActionItem, Decision, Meeting, MeetingStatus, Project, Transcript
+from app.jobs import enqueue_summary, enqueue_transcription
+from app.models import (
+    ActionItem,
+    Decision,
+    Meeting,
+    MeetingStatus,
+    Project,
+    Summary,
+    Transcript,
+)
 from app.storage import save_upload
 
 ALLOWED_AUDIO = {".wav", ".mp4", ".m4a", ".mp3", ".webm", ".ogg", ".flac"}
@@ -268,6 +277,73 @@ def relabel_speakers(
     db.commit()
     db.refresh(tr)
     return tr
+
+
+# ---------------------------------------------------------------- summary (Агент-2, Фаза 7)
+class SummaryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    meeting_id: str
+    project_id: str
+    summary: str
+    action_items: list[dict]
+    decisions: list[dict]
+    risks: list[dict]
+    confidence: float | None
+    engine: str | None
+    status: str                       # pending | ready | failed
+    error: str | None
+    updated_at: datetime
+
+
+class SummarizeIn(BaseModel):
+    engine: Literal["local", "cloud"] = "local"   # приватність зустрічі -> вибір рушія
+
+
+@app.post("/meetings/{meeting_id}/summarize", response_model=SummaryOut, status_code=202)
+def request_summary(
+    meeting_id: str, payload: SummarizeIn, db: Session = Depends(get_db)
+) -> Summary:
+    """Поставити (пере)генерацію резюме в чергу. Рушій за приватністю: local (Ollama) / cloud
+    (OpenAI). Важка робота — на host summary-воркері (доступ до Ollama); тут лише upsert
+    Summary(status=pending) + enqueue. Резюме читається через GET .../summary (polling)."""
+    meeting = db.get(Meeting, meeting_id)
+    if meeting is None:
+        raise HTTPException(status_code=404, detail="meeting not found")
+    if db.scalar(select(Transcript).where(Transcript.meeting_id == meeting_id)) is None:
+        raise HTTPException(status_code=409, detail="транскрипт ще не готовий — нема що резюмувати")
+
+    if payload.engine == "cloud":
+        if not settings.openai_api_key:
+            raise HTTPException(status_code=400,
+                                detail="хмарний режим недоступний: OPENAI_API_KEY не задано в .env")
+        engine_label = f"cloud:{settings.summary_model_cloud}"
+    else:
+        engine_label = f"local:{settings.summary_model_local}"
+
+    summ = db.scalar(select(Summary).where(Summary.meeting_id == meeting_id))
+    if summ is None:
+        summ = Summary(meeting_id=meeting_id, project_id=meeting.project_id)
+        db.add(summ)
+    summ.status = "pending"
+    summ.engine = engine_label
+    summ.error = None
+    db.commit()
+    db.refresh(summ)
+
+    try:
+        enqueue_summary(meeting_id)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=503, detail=f"черга недоступна: {exc}")
+    return summ
+
+
+@app.get("/meetings/{meeting_id}/summary", response_model=SummaryOut)
+def get_summary(meeting_id: str, db: Session = Depends(get_db)) -> Summary:
+    """Останнє резюме зустрічі (будь-який статус). 404 поки жодного разу не запитували."""
+    summ = db.scalar(select(Summary).where(Summary.meeting_id == meeting_id))
+    if summ is None:
+        raise HTTPException(status_code=404, detail="резюме ще не генерували")
+    return summ
 
 
 @app.get("/projects/{project_id}/meetings", response_model=list[MeetingOut])

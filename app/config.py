@@ -21,6 +21,13 @@ class Settings(BaseSettings):
     # Локальна LLM (Ollama) — на потім (Фаза 6)
     ollama_host: str = "http://localhost:11434"
 
+    # Резюме (Агент-2, Фаза 7): рушій вибирається за приватністю зустрічі.
+    #   local  -> Ollama (приватно, $0, нічого не покидає машину) — ДЕФОЛТ.
+    #   cloud  -> OpenAI (краще резюме для «непублічних» зустрічей; лише ТЕКСТ, не аудіо).
+    summary_model_local: str = "neural-chat"
+    summary_model_cloud: str = "gpt-4o-mini"
+    openai_api_key: str = ""                     # з .env; порожньо -> хмарний режим недоступний
+
     # Capture / сховище завантажених зустрічей (Фаза 1)
     storage_dir: str = "data/uploads"        # у контейнері перевизначається на /data/uploads
     max_upload_mb: int = 1024                 # ліміт розміру файлу зустрічі

@@ -14,6 +14,7 @@ from app.config import settings
 
 TRANSCRIBE_QUEUE = "cairnwise:transcribe"   # черга задач транскрипції (meeting_id як значення)
 INGEST_QUEUE = "cairnwise:ingest"           # черга задач інжестії в RAG-памʼять (Фаза 4)
+SUMMARIZE_QUEUE = "cairnwise:summarize"     # черга задач резюме (Агент-2, Фаза 7); host-воркер + Ollama
 
 
 def get_redis() -> redis.Redis:
@@ -29,3 +30,9 @@ def enqueue_transcription(meeting_id: str) -> None:
 def enqueue_ingestion(meeting_id: str) -> None:
     """Поставити зустріч у чергу на інжестію (STT-воркер після transcribed / POST .../ingest)."""
     get_redis().lpush(INGEST_QUEUE, meeting_id)
+
+
+def enqueue_summary(meeting_id: str) -> None:
+    """Поставити зустріч у чергу на резюме. Рушій (local/cloud) воркер читає з рядка Summary
+    (API виставив status=pending + engine ПЕРЕД enqueue), тож у черзі — лише meeting_id."""
+    get_redis().lpush(SUMMARIZE_QUEUE, meeting_id)
