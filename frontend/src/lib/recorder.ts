@@ -3,10 +3,12 @@
  * змішані в один трек і записані у webm. Усе локально — Blob нікуди не йде, доки користувач
  * сам не натисне «Завантажити».
  *
- * Системний звук беремо через getDisplayMedia({audio}); у Chrome це вимагає video:true, щоб
- * зʼявилася опція «Поділитися звуком вкладки/екрана». Відеотрек ми НЕ записуємо — лише
- * аудіо обох джерел зводимо через AudioContext у MediaStreamDestination і пишемо його.
- * Якщо системний звук не надано (користувач не поставив галочку / скасував) — пишемо лише мікрофон.
+ * Порядок джерел важливий: getDisplayMedia СУВОРО вимагає свіжої user-activation, тож його
+ * викликаємо ПЕРШИМ (одразу після кліку), бо `await getUserMedia` перед ним зʼїв би активацію
+ * і Chrome кинув би InvalidStateError. Обидва джерела опційні поодинці, але хоча б одне має
+ * бути: інакше нема що писати. Системний звук беремо через getDisplayMedia({audio}); у Chrome
+ * це вимагає video:true, щоб зʼявилася опція «Поділитися звуком вкладки/екрана». Відеотрек ми
+ * НЕ записуємо — лише аудіо обох джерел зводимо через AudioContext.
  */
 
 const MIME_CANDIDATES = ['audio/webm;codecs=opus', 'audio/webm'] as const;
@@ -27,38 +29,49 @@ export function recordingSupported(): boolean {
   );
 }
 
+/** Людська підказка за DOMException.name — щоб користувач бачив ПРИЧИНУ, а не загальне «не вдалося». */
+export function recorderErrorMessage(err: unknown): string {
+  const e = err as { name?: string; message?: string } | undefined;
+  const name = e?.name ?? 'Error';
+  const map: Record<string, string> = {
+    NotAllowedError: 'Доступ до мікрофона/звуку відхилено. Дозвольте у налаштуваннях браузера та спробуйте ще раз.',
+    NotFoundError: 'Не знайдено мікрофон. Підключіть аудіопристрій і спробуйте ще раз.',
+    NotReadableError: 'Мікрофон зайнятий іншою програмою (напр. Zoom/Meet). Закрийте її та повторіть.',
+    OverconstrainedError: 'Пристрій не підтримує потрібні параметри запису.',
+    SecurityError: 'Запис доступний лише на https або localhost.',
+    NoAudioSource: 'Не вибрано жодного джерела звуку (ні мікрофон, ні системний звук).',
+  };
+  const base = map[name] ?? e?.message ?? 'Не вдалося почати запис.';
+  return `${base} [${name}]`;
+}
+
 export interface RecorderHandle {
   /** Зупинити запис і отримати фінальний Blob (звільняє всі ресурси). */
   stop: () => Promise<Blob>;
   /** Скасувати без результату (звільняє ресурси). */
   cancel: () => void;
-  /** Чи реально захоплено системний звук (галочка «Share audio»). */
+  hasMic: boolean;
   hasSystemAudio: boolean;
   mimeType: string;
 }
 
 /**
- * Стартує запис. Кидає, якщо відмовлено в мікрофоні (мінімальна вимога). Системний звук —
- * best-effort: відмова/скасування не валить запис, лишається моно-режим (мікрофон).
+ * Стартує запис. Кидає (з .name для recorderErrorMessage), якщо НЕ вдалося отримати ЖОДНОГО
+ * джерела звуку. Якщо доступне хоча б одне (мікрофон АБО системний звук) — пишемо його.
  */
 export async function startRecording(): Promise<RecorderHandle> {
   const mimeType = pickMimeType();
   const blobType = mimeType || 'audio/webm';
 
-  // 1) Мікрофон — обовʼязковий.
-  const micStream = await navigator.mediaDevices.getUserMedia({
-    audio: { echoCancellation: true, noiseSuppression: true },
-  });
-
-  // 2) Системний звук — опційний.
   let displayStream: MediaStream | null = null;
-  let hasSystemAudio = false;
+  let micStream: MediaStream | null = null;
+
+  // 1) Системний звук — ПЕРШИМ (поки активація свіжа). Опційно: відмова/скасування -> без нього.
   try {
     if (navigator.mediaDevices.getDisplayMedia) {
       displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-      hasSystemAudio = displayStream.getAudioTracks().length > 0;
-      if (!hasSystemAudio) {
-        // Користувач поділився екраном без звуку — відеотрек нам не потрібен.
+      if (displayStream.getAudioTracks().length === 0) {
+        // Поділилися екраном без звуку — відеотрек нам не потрібен.
         displayStream.getTracks().forEach((t) => t.stop());
         displayStream = null;
       }
@@ -67,7 +80,24 @@ export async function startRecording(): Promise<RecorderHandle> {
     displayStream = null; // відмова/скасування — лишаємось на мікрофоні
   }
 
-  // 3) Мікс обох джерел у один аудіотрек.
+  // 2) Мікрофон. Якщо впав, але є системний звук — продовжуємо без мікрофона.
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true },
+    });
+  } catch (err) {
+    micStream = null;
+    if (!displayStream) {
+      // жодного джерела — прибираємо й кидаємо ПРИЧИНУ (mic-помилку) нагору
+      throw err;
+    }
+  }
+
+  if (!micStream && !displayStream) {
+    throw new DOMException('no audio source', 'NoAudioSource');
+  }
+
+  // 3) Мікс наявних джерел у один аудіотрек.
   const ctx = new AudioContext();
   if (ctx.state === 'suspended') {
     try {
@@ -77,10 +107,8 @@ export async function startRecording(): Promise<RecorderHandle> {
     }
   }
   const dest = ctx.createMediaStreamDestination();
-  ctx.createMediaStreamSource(micStream).connect(dest);
-  if (displayStream) {
-    ctx.createMediaStreamSource(displayStream).connect(dest);
-  }
+  if (micStream) ctx.createMediaStreamSource(micStream).connect(dest);
+  if (displayStream) ctx.createMediaStreamSource(displayStream).connect(dest);
 
   const recorder = new MediaRecorder(dest.stream, mimeType ? { mimeType } : undefined);
   const chunks: BlobPart[] = [];
@@ -93,13 +121,14 @@ export async function startRecording(): Promise<RecorderHandle> {
   const release = () => {
     if (released) return;
     released = true;
-    micStream.getTracks().forEach((t) => t.stop());
+    micStream?.getTracks().forEach((t) => t.stop());
     displayStream?.getTracks().forEach((t) => t.stop());
     ctx.close().catch(() => {});
   };
 
   return {
-    hasSystemAudio,
+    hasMic: !!micStream,
+    hasSystemAudio: !!displayStream,
     mimeType: blobType,
     stop: () =>
       new Promise<Blob>((resolve) => {

@@ -13,6 +13,7 @@ import { cn } from '../lib/cn';
 import { formatBytes } from '../lib/format';
 import { useUploadMeeting } from '../lib/queries';
 import {
+  recorderErrorMessage,
   recordingSupported,
   startRecording,
   type RecorderHandle,
@@ -62,6 +63,7 @@ export function RecordMeeting({ projectId, onClose }: RecordMeetingProps) {
   const [title, setTitle] = useState('');
   const [elapsed, setElapsed] = useState(0);
   const [systemAudio, setSystemAudio] = useState(false);
+  const [micOn, setMicOn] = useState(true);
   const [blob, setBlob] = useState<Blob | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
@@ -90,15 +92,12 @@ export function RecordMeeting({ projectId, onClose }: RecordMeetingProps) {
       const handle = await startRecording();
       handleRef.current = handle;
       setSystemAudio(handle.hasSystemAudio);
+      setMicOn(handle.hasMic);
       setElapsed(0);
       setPhase('recording');
       timerRef.current = window.setInterval(() => setElapsed((e) => e + 1), 1000);
     } catch (err) {
-      setError(
-        err instanceof DOMException && err.name === 'NotAllowedError'
-          ? 'Доступ до мікрофона відхилено. Дозвольте мікрофон і спробуйте ще раз.'
-          : 'Не вдалося почати запис. Перевірте дозволи мікрофона/доступ до звуку.',
-      );
+      setError(recorderErrorMessage(err));
     }
   }, []);
 
@@ -249,9 +248,16 @@ export function RecordMeeting({ projectId, onClose }: RecordMeetingProps) {
             <div className="font-mono text-4xl tabular-nums text-fg">{mmss(elapsed)}</div>
 
             <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
-              <span className="inline-flex items-center gap-1.5 rounded-pill border border-border bg-surface-2/60 px-2.5 py-1">
-                <Mic className="h-3.5 w-3.5 text-brand" aria-hidden="true" />
-                Мікрофон
+              <span
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-pill border px-2.5 py-1',
+                  micOn
+                    ? 'border-status-transcribed/40 bg-status-transcribed/10 text-fg'
+                    : 'border-border bg-surface-2/60 text-muted',
+                )}
+              >
+                <Mic className="h-3.5 w-3.5" aria-hidden="true" />
+                {micOn ? 'Мікрофон' : 'Без мікрофона'}
               </span>
               <span
                 className={cn(
