@@ -13,6 +13,7 @@ import { cn } from '../lib/cn';
 import { formatBytes } from '../lib/format';
 import { useUploadMeeting } from '../lib/queries';
 import {
+  extForMime,
   recorderErrorMessage,
   recordingSupported,
   startRecording,
@@ -35,11 +36,11 @@ function mmss(total: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-/** meeting-YYYYMMDD-HHmmss.webm — стабільна, читабельна назва запису. */
-function recordingFilename(): string {
+/** meeting-YYYYMMDD-HHmmss.<ext> — стабільна назва; ext за реальним кодеком (webm/m4a/ogg). */
+function recordingFilename(ext: string): string {
   const d = new Date();
   const p = (n: number) => String(n).padStart(2, '0');
-  return `meeting-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.webm`;
+  return `meeting-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.${ext}`;
 }
 
 interface RecordMeetingProps {
@@ -61,6 +62,7 @@ export function RecordMeeting({ projectId, onClose }: RecordMeetingProps) {
   const [phase, setPhase] = useState<Phase>('setup');
   const [consent, setConsent] = useState(false);
   const [title, setTitle] = useState('');
+  const [wantSystem, setWantSystem] = useState(true);   // питати системний звук на старті
   const [elapsed, setElapsed] = useState(0);
   const [systemAudio, setSystemAudio] = useState(false);
   const [micOn, setMicOn] = useState(true);
@@ -70,6 +72,8 @@ export function RecordMeeting({ projectId, onClose }: RecordMeetingProps) {
 
   const handleRef = useRef<RecorderHandle | null>(null);
   const timerRef = useRef<number | null>(null);
+  const mountedRef = useRef(true);
+  const systemId = useId();
 
   const clearTimer = useCallback(() => {
     if (timerRef.current != null) {
@@ -81,6 +85,7 @@ export function RecordMeeting({ projectId, onClose }: RecordMeetingProps) {
   // Прибирання при розмонтуванні (якщо запис ще активний).
   useEffect(() => {
     return () => {
+      mountedRef.current = false;
       clearTimer();
       handleRef.current?.cancel();
     };
@@ -89,34 +94,57 @@ export function RecordMeeting({ projectId, onClose }: RecordMeetingProps) {
   const onStart = useCallback(async () => {
     setError(null);
     try {
-      const handle = await startRecording();
+      const handle = await startRecording({
+        mic: true,
+        systemAudio: wantSystem,
+        onSystemAudioLost: () => {
+          setSystemAudio(false);
+          toast({
+            title: 'Системний звук вимкнено',
+            description: 'Спільний доступ зупинено — далі пишемо лише мікрофон.',
+            tone: 'info',
+          });
+        },
+      });
       handleRef.current = handle;
       setSystemAudio(handle.hasSystemAudio);
       setMicOn(handle.hasMic);
+      if (wantSystem && !handle.hasSystemAudio) {
+        toast({
+          title: 'Без системного звуку',
+          description: 'Браузер не передав системний звук — пишемо лише мікрофон.',
+          tone: 'info',
+        });
+      }
       setElapsed(0);
       setPhase('recording');
       timerRef.current = window.setInterval(() => setElapsed((e) => e + 1), 1000);
     } catch (err) {
       setError(recorderErrorMessage(err));
     }
-  }, []);
+  }, [wantSystem, toast]);
 
   const onStop = useCallback(async () => {
     clearTimer();
     const handle = handleRef.current;
     if (!handle) return;
+    handleRef.current = null;              // очищаємо ДО await: захист від подвійного кліку й unmount-cancel
     const recorded = await handle.stop();
-    handleRef.current = null;
+    if (!mountedRef.current) return;       // модалку закрили під час зупинки — не чіпаємо стан
+    if (recorded.size === 0) {
+      setError('Запис порожній — спробуйте ще раз.');
+      setPhase('setup');
+      return;
+    }
     setBlob(recorded);
     setPhase('review');
   }, [clearTimer]);
 
   const onUpload = useCallback(() => {
-    if (!blob) return;
+    if (!blob || blob.size === 0) return;
     setProgress(0);
-    const file = new File([blob], recordingFilename(), {
-      type: blob.type || 'audio/webm',
-    });
+    const type = blob.type || 'audio/webm';
+    const file = new File([blob], recordingFilename(extForMime(type)), { type });
     upload.mutate(
       {
         input: { file, title: title.trim() || undefined, consent: true },
@@ -203,6 +231,18 @@ export function RecordMeeting({ projectId, onClose }: RecordMeetingProps) {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               hint="Якщо порожньо, буде використано назву файлу."
+            />
+
+            <Checkbox
+              id={systemId}
+              checked={wantSystem}
+              onChange={(e) => setWantSystem(e.target.checked)}
+              label={
+                <span>
+                  Записувати <span className="font-medium text-fg">системний звук</span> (інша
+                  сторона дзвінка). Зніміть, якщо потрібен лише мікрофон.
+                </span>
+              }
             />
 
             <Checkbox
@@ -312,7 +352,7 @@ export function RecordMeeting({ projectId, onClose }: RecordMeetingProps) {
                 size="md"
                 icon={UploadCloud}
                 loading={pending}
-                disabled={!blob || pending}
+                disabled={!blob || blob.size === 0 || pending}
                 onClick={onUpload}
               >
                 Завантажити
