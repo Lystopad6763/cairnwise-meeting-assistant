@@ -1,0 +1,7 @@
+# Cairnwise — STT-воркер (Фаза 2-3). Ставиться у ВАЖКИЙ ML-venv (.venv), де вже є
+# torch/whisperx/pyannote/jiwer/sqlalchemy. Тут — лише те, чого там бракує, щоб воркер міг
+# (а) читати чергу Redis, (б) писати транскрипт у Postgres, (в) читати конфіг з .env.
+#   .\.venv\Scripts\pip install -r requirements-worker.txt
+redis==5.2.1               # клієнт черги (BRPOP)
+psycopg[binary]==3.2.3     # драйвер Postgres (той самий, що в API)
+pydantic-settings==2.7.1   # app/config.py (Settings із .env)

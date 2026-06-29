@@ -1,0 +1,43 @@
+# Заняття 13, анти-патерн №5: без .dockerignore `COPY` тягне гігабайти сміття у build context.
+# В образ API треба лише requirements.txt + app/. Решту виключаємо.
+
+# venv / git / python-кеш
+.venv/
+.venv-ml/
+venv/
+env/
+.git/
+.gitignore
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# секрети / локальний конфіг
+.env
+.env.local
+*.key
+
+# дані та артефакти (в образі API не потрібні)
+data/
+eval/
+scripts/
+frontend/
+*.wav
+*.mp3
+*.m4a
+*.webm
+*.bin
+*.safetensors
+*.ckpt
+*.pt
+*.onnx
+
+# документи / редактори / docker-meta
+*.md
+*.html
+*.pdf
+.vscode/
+.idea/
+Dockerfile
+docker-compose.yml
+Makefile

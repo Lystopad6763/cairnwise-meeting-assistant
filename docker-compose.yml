@@ -1,0 +1,70 @@
+# Cairnwise — локальний стек (заняття 13: «docker-compose = твій базовий стек локально»).
+# `docker compose up --build` підіймає API + Postgres + Redis + Qdrant; /health має стати зеленим.
+services:
+  api:
+    build: .                       # multi-stage Dockerfile
+    ports: ["8000:8000"]
+    environment:
+      # у контейнері звертаємось до сервісів за ІМЕНАМИ (не localhost)
+      DATABASE_URL: postgresql+psycopg://cairnwise:cairnwise@postgres:5432/cairnwise
+      REDIS_URL: redis://redis:6379/0
+      QDRANT_URL: http://qdrant:6333
+      STORAGE_DIR: /data/uploads
+    volumes:
+      # BIND-MOUNT (не named volume): завантажені зустрічі мають бути видимі і контейнеру-API,
+      # і host-воркеру з GPU (scripts/worker.py читає той самий каталог). Named volume host не бачить.
+      - ./data/uploads:/data/uploads
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      qdrant: {condition: service_started}   # у qdrant немає healthcheck-утиліт — лише старт
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health',timeout=3).status==200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: cairnwise
+      POSTGRES_PASSWORD: cairnwise
+      POSTGRES_DB: cairnwise
+    # хост-порт зміщено (5433), бо 5432 тримає НАТИВНИЙ Postgres машини (служба postgresql-x64-*),
+    # який затіняє docker-Postgres для host-клієнтів (STT-воркер). API ходить у postgres:5432
+    # ВНУТРІШНЬОЮ мережею, тож на нього зсув не впливає.
+    ports: ["5433:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cairnwise -d cairnwise"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    # хост-порт зміщено (6380), бо 6379 зайнятий redis іншого проєкту. API ходить у redis
+    # внутрішньою мережею (redis:6379), тож на нього це не впливає.
+    ports: ["6380:6379"]
+    volumes: ["redisdata:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    # хост-порти зміщено (6543/6544), бо 6333/6334 зайняті qdrant іншого проєкту.
+    # API ходить у qdrant ВНУТРІШНЬОЮ мережею (qdrant:6333), тож на нього це не впливає.
+    ports: ["6543:6333", "6544:6334"]
+    volumes: ["qdrantdata:/qdrant/storage"]
+    # healthcheck опущено: образ qdrant без curl/wget/sh — фолсова "unhealthy".
+    # Стан перевіряє сам API у /health через qdrant-client.
+
+volumes:
+  pgdata:
+  redisdata:
+  qdrantdata:
+  # uploads більше не named volume — тепер bind-mount ./data/uploads (див. api.volumes)

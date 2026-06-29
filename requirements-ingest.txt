@@ -1,0 +1,28 @@
+# Захоплення + STT + діаризація (Агент 1). Окремо від основного API (torch-важке).
+#   pip install -r requirements-ingest.txt
+#   python -m spacy download en_core_web_sm   # якщо знадобиться PII-de-id на ingestion
+
+whisperx>=3.1            # WhisperX = faster-whisper (STT) + pyannote (align + diarization)
+soundcard>=0.4           # WASAPI loopback: апка «чує» системний звук (YouTube / зустріч)
+soundfile>=0.12          # запис/читання wav
+yt-dlp>=2024.1           # завантаження YouTube-аудіо для чистих датасетів / golden-set
+huggingface_hub>=0.23    # download_models.py
+
+# Генерація синтетичних аудіо-созвонів + ground-truth (synthesize_dialogue.py).
+edge-tts>=6.1            # cloud TTS, 2 укр. голоси (uk-UA-Ostap/Polina); потребує ffmpeg
+ukrainian-tts           # ЛОКАЛЬНО, 5 укр. голосів (Tetiana/Mykyta/Lada/Dmytro/Oleksa) для 3-4 спікерів
+pydub>=0.25             # склейка/конвертація сегментів (ffmpeg треба лише для edge/mp3)
+
+# Phase 4 — per-project RAG memory (bge-m3 dense+sparse -> Qdrant). HOST .venv only.
+FlagEmbedding>=1.2.10     # BGEM3FlagModel: dense(1024)+learned sparse в одному forward-pass
+qdrant-client==1.12.2     # пін збігається з requirements.txt (API-образ); named+sparse vectors, Query API
+# torch/transformers уже в .venv через whisperx — FlagEmbedding їх переюзає (нічого додатково).
+
+# Бенчмарк ASR+diarization (benchmark_asr_diar.py).
+jiwer>=3.0              # WER
+pyannote.metrics>=3.2   # DER
+# meeteval>=0.3         # cpWER (CHiME-стандарт). ВИМКНЕНО: на Windows збирається з джерел і
+#                       # вимагає MSVC Build Tools (немає wheel) — блокувало весь install.
+#                       # benchmark_asr_diar.py має ВЛАСНИЙ pure-Python cpWER (Hungarian+jiwer),
+#                       # тож метрика працює без нього. Хочеш «канонічний» meeteval — постав
+#                       # C++ Build Tools і розкоментуй: pip install meeteval

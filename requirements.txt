@@ -1,0 +1,13 @@
+# Cairnwise — API/застосунок (CPU-only, легке, БЕЗ torch). Закріплені версії (заняття 13:
+# reproducibility). STT/diar-важке (whisperx, pyannote, ukrainian-tts) — у requirements-ingest.txt.
+#   docker build .   (або локально: pip install -r requirements.txt у ОКРЕМИЙ venv)
+
+fastapi==0.115.6            # web-фреймворк
+uvicorn[standard]==0.34.0   # ASGI-сервер
+python-multipart==0.0.18    # multipart/form-data (upload файлів зустрічей, Фаза 1)
+pydantic==2.10.4            # схеми
+pydantic-settings==2.7.1    # конфіг з .env (app/config.py)
+sqlalchemy==2.0.36          # ORM (Postgres)
+psycopg[binary]==3.2.3      # драйвер Postgres (psycopg v3)
+redis==5.2.1                # клієнт Redis (черги/кеш; /health)
+qdrant-client==1.12.2       # клієнт Qdrant (векторна памʼять; /health)

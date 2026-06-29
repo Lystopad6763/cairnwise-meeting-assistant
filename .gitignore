@@ -1,0 +1,65 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# --- Virtual environments ---
+.venv/
+.venv-ml/
+venv/
+env/
+
+# --- Secrets / local config ---
+.env
+.env.local
+*.key
+
+# --- HuggingFace / model caches (якщо перенаправлено в проєкт) ---
+.hf-cache/
+.cache/
+
+# --- Згенероване аудіо (важке) — лишаємо .json-скрипти + .ref.json/.rttm (ground-truth) ---
+*.wav
+*.mp3
+*.m4a
+*.webm
+
+# --- Ваги моделей ---
+*.bin
+*.safetensors
+*.ckpt
+*.pt
+*.onnx
+
+# --- Frontend (React/Vite) ---
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+
+# --- OS / редактори ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+
+# --- Приватне: робочий журнал, план і внутрішні нотатки (не для публіки) ---
+JOURNAL.md
+RESUME.md
+PLAN.md
+DECOMPOSITION.md
+
+# --- Великі моделі/артефакти (стрей-завантаження в корінь) ---
+*.pth
+*.npz
+*.ark
+# стрей-конфіг ukrainian-tts (НЕ плутати з app/config.py) — gitignore не має inline-коментарів
+config.yaml
+
+# скомпільовані vite-конфіги (артефакти tsc, не вихідний код)
+frontend/vite.config.js
+frontend/vite.config.d.ts
+
+# --- Завантажені/записані зустрічі (bind-mount, важке аудіо) ---
+data/uploads/
