@@ -76,6 +76,10 @@ class Transcript(Base):
         String(36), ForeignKey("meetings.id"), unique=True, index=True
     )
     segments: Mapped[list[dict]] = mapped_column(JSONB)            # [{speaker,start,end,text}]
+    # Підписи спікерів (relabel після транскрипції): {"Speaker 1": {"name": "Іван", "role": "PM"}}.
+    # Сегменти лишаються канонічними («Speaker N») — імена застосовуються поверх (display + summary),
+    # тож relabel недеструктивний і переredагований. Порожньо = ще не підписано.
+    speaker_labels: Mapped[dict] = mapped_column(JSONB, default=dict)
     language: Mapped[str | None] = mapped_column(String(8), default=None)
     model: Mapped[str] = mapped_column(String(64))                # whisper-модель (напр. small)
     diarizer: Mapped[str | None] = mapped_column(String(120), default=None)
@@ -120,4 +124,35 @@ class Decision(Base):
     confidence: Mapped[float | None] = mapped_column(Float, default=None)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class Summary(Base):
+    """Резюме зустрічі (Агент-2, Фаза 7): grounded summary + сутності + HITL-впевненість.
+
+    One-to-one з Meeting (перегенеровується після relabel/зміни рушія -> upsert, не дубль).
+    `status` — простий РЯДОК (pending/ready/failed), НЕ нативний enum: свідомо уникаємо болю
+    з `ALTER TYPE ADD VALUE` (урок із meetingstatus). `engine` фіксує, ЯКИЙ рушій згенерував
+    (local:neural-chat / cloud:gpt-4o-mini) — провенанс приватного vs хмарного режиму.
+    Резюме генерує host summary-воркер (доступ до Ollama); API лише ставить у чергу й читає."""
+    __tablename__ = "summaries"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    meeting_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("meetings.id"), unique=True, index=True
+    )
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), index=True)
+    summary: Mapped[str] = mapped_column(Text, default="")
+    action_items: Mapped[list[dict]] = mapped_column(JSONB, default=list)
+    decisions: Mapped[list[dict]] = mapped_column(JSONB, default=list)
+    risks: Mapped[list[dict]] = mapped_column(JSONB, default=list)          # risks_blockers
+    confidence: Mapped[float | None] = mapped_column(Float, default=None)
+    engine: Mapped[str | None] = mapped_column(String(64), default=None)    # local:<model> / cloud:<model>
+    status: Mapped[str] = mapped_column(String(16), default="pending")      # pending | ready | failed
+    error: Mapped[str | None] = mapped_column(Text, default=None)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

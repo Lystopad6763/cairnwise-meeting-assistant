@@ -25,6 +25,8 @@ class Base(DeclarativeBase):
 # через ADD COLUMN IF NOT EXISTS (Postgres). Безпечно ганяти на кожному старті.
 _COLUMN_MIGRATIONS = (
     "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS error TEXT",
+    # relabel-підписи спікерів на існуючій таблиці transcripts (create_all нову колонку не додає)
+    "ALTER TABLE transcripts ADD COLUMN IF NOT EXISTS speaker_labels JSONB DEFAULT '{}'::jsonb",
 )
 
 # Нові значення нативного enum-типу. create_all НЕ розширює існуючий enum -> докочуємо вручну.

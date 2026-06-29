@@ -153,6 +153,7 @@ class TranscriptOut(BaseModel):
     duration_s: float
     compute_secs: float | None
     segments: list[dict]
+    speaker_labels: dict = {}          # {"Speaker 1": {"name","role"}} — relabel поверх сегментів
     created_at: datetime
 
 
@@ -228,6 +229,44 @@ def get_transcript(meeting_id: str, db: Session = Depends(get_db)) -> Transcript
     tr = db.scalar(select(Transcript).where(Transcript.meeting_id == meeting_id))
     if tr is None:
         raise HTTPException(status_code=404, detail="транскрипт ще не готовий (див. status зустрічі)")
+    return tr
+
+
+class SpeakerLabel(BaseModel):
+    name: str | None = None
+    role: str | None = None
+
+
+class RelabelIn(BaseModel):
+    # {"Speaker 1": {"name": "Іван", "role": "PM"}, ...}
+    labels: dict[str, SpeakerLabel]
+
+
+@app.post("/meetings/{meeting_id}/relabel", response_model=TranscriptOut)
+def relabel_speakers(
+    meeting_id: str, payload: RelabelIn, db: Session = Depends(get_db)
+) -> Transcript:
+    """Підписати спікерів іменами/ролями після транскрипції. Недеструктивно: сегменти лишаються
+    «Speaker N», підписи зберігаються в `transcripts.speaker_labels` і застосовуються поверх
+    (display + резюме). Невідомі (не з транскрипту) ключі ігноруються."""
+    if db.get(Meeting, meeting_id) is None:
+        raise HTTPException(status_code=404, detail="meeting not found")
+    tr = db.scalar(select(Transcript).where(Transcript.meeting_id == meeting_id))
+    if tr is None:
+        raise HTTPException(status_code=404, detail="транскрипт ще не готовий")
+
+    known = {s.get("speaker") for s in tr.segments}
+    clean: dict[str, dict] = {}
+    for spk, lab in payload.labels.items():
+        if spk not in known:
+            continue                                  # ігноруємо мітки невідомих спікерів
+        name = (lab.name or "").strip()
+        role = (lab.role or "").strip()
+        if name or role:                              # порожній підпис = «зняти», не зберігаємо
+            clean[spk] = {"name": name, "role": role}
+    tr.speaker_labels = clean                         # реасайн dict -> SQLAlchemy фіксує зміну
+    db.commit()
+    db.refresh(tr)
     return tr
 
 

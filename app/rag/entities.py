@@ -42,6 +42,32 @@ EXAMPLE = (
 )
 
 
+def speaker_display(label: dict | None, fallback: str) -> str:
+    """{"name","role"} -> «Іван (PM)» / «Іван» / fallback (якщо не підписано)."""
+    if not label:
+        return fallback
+    name = str(label.get("name") or "").strip()
+    role = str(label.get("role") or "").strip()
+    if not name:
+        return fallback
+    return f"{name} ({role})" if role else name
+
+
+def relabel_segments(segments: list[dict], labels: dict | None) -> list[dict]:
+    """Застосувати підписи спікерів поверх сегментів (недеструктивно -> НОВИЙ список).
+
+    labels: {"Speaker 1": {"name": "Іван", "role": "PM"}}. Сегменти без підпису лишаються як є.
+    Використовується summary-воркером, щоб резюме говорило іменами, а не «Speaker N»."""
+    if not labels:
+        return segments
+    out = []
+    for s in segments:
+        spk = s.get("speaker", "Speaker ?")
+        disp = speaker_display(labels.get(spk), spk)
+        out.append({**s, "speaker": disp} if disp != spk else s)
+    return out
+
+
 def number_transcript(segments: list[dict]) -> str:
     """Кожна репліка -> '[#N] Speaker X (12.3s): текст'. Номер N = якір для цитат."""
     lines = []
