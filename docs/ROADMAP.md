@@ -18,11 +18,13 @@
 - [ ] **P2 · Прослуховування запису в UI.** `<audio>`-плеєр на сторінці зустрічі (через новий `GET /meetings/{id}/audio`) — чути, що записалось, до/після транскрипції.
 - [ ] **P2 · Cloud-резюме за замовчуванням для якості** (коли є ключ і зустріч «непублічна») — лишити local як приватний дефолт, але підказати перемкнутись.
 
-## C. Наступна велика фаза (після demo-готовності)
+## C. Фаза 5/6 — КОД ГОТОВИЙ (лишилась runtime-перевірка)
 
-- [ ] **Retrieval / `/ask`** — гібрид (BM25+dense) → `bge-reranker-v2-m3` → відповідь із цитатами та **abstention**. Це головний наступний диференціатор (питання до памʼяті проєкту).
-- [ ] **Агент** — ReAct + tools (`search_memory`, Text-to-SQL, `propose_*`) на LangGraph із HITL.
-- [ ] **Дії за апрувом** — конектори Jira/Slack/email через чергу апрувів + ідемпотентний executor.
+- [x] **Retrieval / `/ask`** — гібрид (bge-m3 dense+sparse) → `bge-reranker-v2-m3` (опц., фолбек на RRF) → grounded відповідь із цитатами та **abstention**. Бекенд (`ask.py`, `ask_worker.py`, `/ask`) + фронтенд (`AskPanel`) зібрані й задеплоєні.
+- [x] **Агент (propose-then-commit)** — ReAct-цикл, tools `search_memory` + `list_entities` → `ProposedAction(proposed)`; **черга апрувів (HITL)** з approve/reject у UI. Бекенд (`agent.py`, `agent_worker.py`, `/agent`, `/approvals`) + фронтенд (`AgentPanel`, жива `ApprovalsPage`) зібрані.
+- [ ] **P0 · Runtime-перевірка Phase 5/6** на чистому прогоні: докачати `bge-reranker-v2-m3` (`huggingface_hub.snapshot_download`), підняти `ask_worker.py` + `agent_worker.py`, прогнати `/ask` (grounded + abstention) і агента (→ пропозиції в Черзі дій). На 4 GB CPU-embed повільний — стартувати з чистого GPU без конкурентних завантажень.
+- [ ] **Text-to-SQL tool** для агента (зараз `list_entities` — структурований доступ до action_items/decisions) + перехід ReAct-циклу на **LangGraph**.
+- [ ] **Дії за апрувом** — конектори Jira/Slack/email через чергу апрувів + ідемпотентний executor (approve наразі фіксує рішення, виконання — наступний крок).
 - [ ] **RAGAS-eval** — golden-set (grounded Q&A + abstention) як регресійний гейт якості.
 
 ## D. Документація / звіт
