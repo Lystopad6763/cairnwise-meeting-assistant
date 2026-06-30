@@ -157,7 +157,7 @@ export interface AskOut {
   created_at: string;
 }
 
-export type ApprovalKind = 'jira' | 'slack';
+export type ApprovalKind = 'jira' | 'slack' | 'email' | 'note';
 export type ApprovalStatus =
   | 'proposed'
   | 'approved'
@@ -174,8 +174,21 @@ export interface ProposedAction {
   title: string;
   payload: Record<string, unknown>;
   rationale: string;
-  citations: Citation[];
+  citations: AskCitation[];        // ask-стиль джерела {n, meeting_id, title, speaker, ...}
   status: ApprovalStatus;
   result: string | null;
+  created_at: string;
+}
+
+// ---- Agent run (Фаза 6) ----
+export interface AgentRunOut {
+  id: string;
+  project_id: string;
+  goal: string;
+  meeting_id: string | null;
+  engine: string | null;
+  status: AskJobStatus;            // pending | ready | failed
+  n_proposed: number;
+  error: string | null;
   created_at: string;
 }

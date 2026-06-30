@@ -11,6 +11,7 @@ import { qk } from './queryKeys';
 import { queryClient } from './queryClient';
 import {
   ACTIVE_STATUSES,
+  type AgentRunOut,
   type AskEngine,
   type AskOut,
   type HealthOut,
@@ -18,6 +19,7 @@ import {
   type MeetingStatus,
   type ProjectIn,
   type ProjectOut,
+  type ProposedAction,
   type SpeakerLabels,
   type SummaryEngine,
   type SummaryOut,
@@ -195,6 +197,54 @@ export function useAskResult(askId: string | null): UseQueryResult<AskOut, ApiEr
     enabled: !!askId,
     retry: (_n, err) => err.status !== 404,
     refetchInterval: (q) => (q.state.data?.status === 'pending' ? 2500 : false),
+  });
+}
+
+// ---------------------------------------------------------------- agent (Phase 6) + approvals (HITL)
+export function useRunAgent(
+  projectId: string,
+): UseMutationResult<AgentRunOut, ApiError, { goal: string; engine: AskEngine }> {
+  const qc = useQueryClient();
+  return useMutation<AgentRunOut, ApiError, { goal: string; engine: AskEngine }>({
+    mutationFn: ({ goal, engine }) => api.runAgent(projectId, goal, engine),
+    onSuccess: (run) => qc.setQueryData(qk.agentRun(run.id), run),
+  });
+}
+
+export function useAgentRun(runId: string | null): UseQueryResult<AgentRunOut, ApiError> {
+  return useQuery<AgentRunOut, ApiError>({
+    queryKey: qk.agentRun(runId ?? '—'),
+    queryFn: () => api.getAgentRun(runId as string),
+    enabled: !!runId,
+    retry: (_n, err) => err.status !== 404,
+    refetchInterval: (q) => (q.state.data?.status === 'pending' ? 2500 : false),
+  });
+}
+
+export function useApprovals(status = 'proposed'): UseQueryResult<ProposedAction[], ApiError> {
+  return useQuery<ProposedAction[], ApiError>({
+    queryKey: qk.approvals(status),
+    queryFn: () => api.listApprovals(status),
+  });
+}
+
+export function useApprove(
+  status = 'proposed',
+): UseMutationResult<ProposedAction, ApiError, string> {
+  const qc = useQueryClient();
+  return useMutation<ProposedAction, ApiError, string>({
+    mutationFn: (id) => api.approveAction(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.approvals(status) }),
+  });
+}
+
+export function useReject(
+  status = 'proposed',
+): UseMutationResult<ProposedAction, ApiError, string> {
+  const qc = useQueryClient();
+  return useMutation<ProposedAction, ApiError, string>({
+    mutationFn: (id) => api.rejectAction(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.approvals(status) }),
   });
 }
 

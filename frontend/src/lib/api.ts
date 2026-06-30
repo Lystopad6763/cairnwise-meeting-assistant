@@ -1,4 +1,5 @@
 import type {
+  AgentRunOut,
   AskEngine,
   AskOut,
   Citation,
@@ -6,6 +7,7 @@ import type {
   MeetingOut,
   ProjectIn,
   ProjectOut,
+  ProposedAction,
   SummaryEngine,
   SummaryOut,
   SpeakerLabels,
@@ -272,6 +274,36 @@ export const api = {
 
   getAsk(askId: string): Promise<AskOut> {
     return apiFetch<AskOut>(`/ask/${encodeURIComponent(askId)}`);
+  },
+
+  // Агент (Phase 6): запустити прогін -> AgentRun(pending); результат/пропозиції — через polling.
+  runAgent(projectId: string, goal: string, engine: AskEngine): Promise<AgentRunOut> {
+    return apiFetch<AgentRunOut>(`/projects/${encodeURIComponent(projectId)}/agent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ goal, engine }),
+    });
+  },
+
+  getAgentRun(runId: string): Promise<AgentRunOut> {
+    return apiFetch<AgentRunOut>(`/agent/${encodeURIComponent(runId)}`);
+  },
+
+  // Черга апрувів (HITL).
+  listApprovals(status = 'proposed'): Promise<ProposedAction[]> {
+    return apiFetch<ProposedAction[]>(`/approvals?status=${encodeURIComponent(status)}`);
+  },
+
+  approveAction(actionId: string): Promise<ProposedAction> {
+    return apiFetch<ProposedAction>(`/approvals/${encodeURIComponent(actionId)}/approve`, {
+      method: 'POST',
+    });
+  },
+
+  rejectAction(actionId: string): Promise<ProposedAction> {
+    return apiFetch<ProposedAction>(`/approvals/${encodeURIComponent(actionId)}/reject`, {
+      method: 'POST',
+    });
   },
 };
 

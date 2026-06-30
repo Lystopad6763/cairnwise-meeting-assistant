@@ -21,6 +21,7 @@ import {
 
 import { RecordMeeting } from '../components/RecordMeeting';
 import { AskPanel } from '../components/AskPanel';
+import { AgentPanel } from '../components/AgentPanel';
 
 import { cn } from '../lib/cn';
 import {
@@ -704,6 +705,9 @@ export function ProjectDetailPage() {
 
       {/* Ask the project memory (Phase 5) */}
       {projectId && <AskPanel projectId={projectId} />}
+
+      {/* Agent: propose actions (Phase 6) */}
+      {projectId && <AgentPanel projectId={projectId} />}
 
       {/* Meetings table */}
       {projectId && <MeetingsSection projectId={projectId} />}
