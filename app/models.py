@@ -178,3 +178,53 @@ class AskResult(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+class ProposedAction(Base):
+    """Запропонована агентом дія (Phase 6, propose-then-commit). Ядро HITL: агент ЛИШЕ пропонує,
+    людина апрувить/відхиляє; нічого не виконується автоматично.
+
+    `status`: proposed -> approved/rejected (далі executed/failed, коли під'єднаємо конектори).
+    `citations` — джерела з памʼяті (ask-стиль), `rationale` — чому ця дія. `kind`: jira/slack/email/note."""
+    __tablename__ = "proposed_actions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), index=True)
+    meeting_id: Mapped[str | None] = mapped_column(String(36), default=None)
+    kind: Mapped[str] = mapped_column(String(16), default="note")          # jira | slack | email | note
+    title: Mapped[str] = mapped_column(String(500))
+    payload: Mapped[dict] = mapped_column(JSONB, default=dict)
+    rationale: Mapped[str] = mapped_column(Text, default="")
+    citations: Mapped[list[dict]] = mapped_column(JSONB, default=list)
+    status: Mapped[str] = mapped_column(String(16), default="proposed")    # proposed|approved|rejected|executed|failed
+    result: Mapped[str | None] = mapped_column(Text, default=None)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class AgentRun(Base):
+    """Прогін агента (Phase 6): мета -> зібраний із памʼяті контекст -> запропоновані дії.
+
+    `trace` — прозорість (які сутності/фрагменти використано + сирий вивід LLM). `n_proposed` —
+    скільки ProposedAction створено. Важка робота на host agent-воркері (доступ до Ollama/ембедингів)."""
+    __tablename__ = "agent_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), index=True)
+    meeting_id: Mapped[str | None] = mapped_column(String(36), default=None)
+    goal: Mapped[str] = mapped_column(Text)
+    engine: Mapped[str | None] = mapped_column(String(64), default=None)
+    status: Mapped[str] = mapped_column(String(16), default="pending")     # pending | ready | failed
+    n_proposed: Mapped[int] = mapped_column(Integer, default=0)
+    trace: Mapped[dict] = mapped_column(JSONB, default=dict)
+    error: Mapped[str | None] = mapped_column(Text, default=None)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

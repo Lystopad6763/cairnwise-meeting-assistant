@@ -17,14 +17,16 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import engine, get_db, init_db
-from app.jobs import enqueue_ask, enqueue_summary, enqueue_transcription
+from app.jobs import enqueue_agent, enqueue_ask, enqueue_summary, enqueue_transcription
 from app.models import (
     ActionItem,
+    AgentRun,
     AskResult,
     Decision,
     Meeting,
     MeetingStatus,
     Project,
+    ProposedAction,
     Summary,
     Transcript,
 )
@@ -400,6 +402,122 @@ def get_ask(ask_id: str, db: Session = Depends(get_db)) -> AskResult:
     if row is None:
         raise HTTPException(status_code=404, detail="запит не знайдено")
     return row
+
+
+# ------------------------------------------------ agent + approvals (Phase 6: propose-then-commit)
+class AgentIn(BaseModel):
+    goal: str
+    meeting_id: str | None = None
+    engine: Literal["local", "cloud"] = "local"
+
+
+class AgentRunOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    project_id: str
+    goal: str
+    meeting_id: str | None
+    engine: str | None
+    status: str
+    n_proposed: int
+    error: str | None
+    created_at: datetime
+
+
+class ProposedActionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    project_id: str
+    meeting_id: str | None
+    kind: str
+    title: str
+    payload: dict
+    rationale: str
+    citations: list[dict]
+    status: str
+    result: str | None
+    created_at: datetime
+
+
+@app.post("/projects/{project_id}/agent", response_model=AgentRunOut, status_code=202)
+def run_agent_endpoint(
+    project_id: str, payload: AgentIn, db: Session = Depends(get_db)
+) -> AgentRun:
+    """Запустити агента (ReAct: search_memory + list_entities -> ПРОПОЗИЦІЇ дій). Нічого не
+    виконується — дії йдуть у чергу апрувів (HITL). Важка робота на host agent-воркері."""
+    if db.get(Project, project_id) is None:
+        raise HTTPException(status_code=404, detail="project not found")
+    goal = (payload.goal or "").strip()
+    if not goal:
+        raise HTTPException(status_code=422, detail="порожня мета")
+    if payload.engine == "cloud" and not settings.openai_api_key:
+        raise HTTPException(status_code=400, detail="хмарний режим недоступний: OPENAI_API_KEY не задано")
+    engine_label = (f"cloud:{settings.summary_model_cloud}" if payload.engine == "cloud"
+                    else f"local:{settings.ask_model}")
+    row = AgentRun(project_id=project_id, goal=goal, meeting_id=payload.meeting_id,
+                   engine=engine_label, status="pending")
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    try:
+        enqueue_agent(row.id)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=503, detail=f"черга недоступна: {exc}")
+    return row
+
+
+@app.get("/agent/{run_id}", response_model=AgentRunOut)
+def get_agent_run(run_id: str, db: Session = Depends(get_db)) -> AgentRun:
+    run = db.get(AgentRun, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="прогін агента не знайдено")
+    return run
+
+
+@app.get("/approvals", response_model=list[ProposedActionOut])
+def list_approvals(status: str = "proposed", db: Session = Depends(get_db)) -> list[ProposedAction]:
+    """Черга запропонованих дій (усі проєкти). За замовчуванням — лише `proposed` (очікують HITL)."""
+    q = select(ProposedAction).order_by(ProposedAction.created_at.desc())
+    if status:
+        q = q.where(ProposedAction.status == status)
+    return list(db.scalars(q))
+
+
+@app.get("/projects/{project_id}/approvals", response_model=list[ProposedActionOut])
+def list_project_approvals(
+    project_id: str, status: str | None = None, db: Session = Depends(get_db)
+) -> list[ProposedAction]:
+    q = (select(ProposedAction)
+         .where(ProposedAction.project_id == project_id)
+         .order_by(ProposedAction.created_at.desc()))
+    if status:
+        q = q.where(ProposedAction.status == status)
+    return list(db.scalars(q))
+
+
+def _decide(action_id: str, new_status: str, result: str | None, db: Session) -> ProposedAction:
+    pa = db.get(ProposedAction, action_id)
+    if pa is None:
+        raise HTTPException(status_code=404, detail="пропозицію не знайдено")
+    if pa.status != "proposed":
+        raise HTTPException(status_code=409, detail=f"вже оброблено (status={pa.status})")
+    pa.status = new_status
+    pa.result = result
+    db.commit()
+    db.refresh(pa)
+    return pa
+
+
+@app.post("/approvals/{action_id}/approve", response_model=ProposedActionOut)
+def approve_action(action_id: str, db: Session = Depends(get_db)) -> ProposedAction:
+    """Людський апрув. Дію позначено approved; реальне виконання через конектори — наступний крок."""
+    return _decide(action_id, "approved",
+                   "Підтверджено людиною. Виконання через конектори (Jira/Slack/email) — наступний крок.", db)
+
+
+@app.post("/approvals/{action_id}/reject", response_model=ProposedActionOut)
+def reject_action(action_id: str, db: Session = Depends(get_db)) -> ProposedAction:
+    return _decide(action_id, "rejected", "Відхилено людиною.", db)
 
 
 @app.get("/projects/{project_id}/meetings", response_model=list[MeetingOut])

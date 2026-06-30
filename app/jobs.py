@@ -16,6 +16,7 @@ TRANSCRIBE_QUEUE = "cairnwise:transcribe"   # черга задач транск
 INGEST_QUEUE = "cairnwise:ingest"           # черга задач інжестії в RAG-памʼять (Фаза 4)
 SUMMARIZE_QUEUE = "cairnwise:summarize"     # черга задач резюме (Агент-2, Фаза 7); host-воркер + Ollama
 ASK_QUEUE = "cairnwise:ask"                 # черга Q&A до памʼяті (Фаза 5); host-воркер: embed+rerank+LLM
+AGENT_QUEUE = "cairnwise:agent"             # черга прогонів агента (Фаза 6); host-воркер: ReAct + propose
 
 
 def get_redis() -> redis.Redis:
@@ -42,3 +43,8 @@ def enqueue_summary(meeting_id: str) -> None:
 def enqueue_ask(ask_id: str) -> None:
     """Поставити Q&A-запит у чергу. Питання/проєкт/рушій воркер читає з рядка AskResult."""
     get_redis().lpush(ASK_QUEUE, ask_id)
+
+
+def enqueue_agent(run_id: str) -> None:
+    """Поставити прогін агента у чергу. Мету/проєкт/рушій воркер читає з рядка AgentRun."""
+    get_redis().lpush(AGENT_QUEUE, run_id)

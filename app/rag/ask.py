@@ -73,42 +73,35 @@ def _generate(prompt: str, engine: str) -> str:
     return _gen_local(prompt, model or settings.ask_model)
 
 
-def answer_question(
-    project_id: str, question: str, *, embedder, store, reranker, engine: str | None = None,
-) -> dict:
-    """Питання -> {answer, citations[], abstained, engine}. Ізоляція форсована store.search."""
-    engine = engine or f"local:{settings.ask_model}"
+def retrieve(project_id: str, query: str, *, embedder, store, reranker) -> list[dict]:
+    """Гібридний пошук + (опційний) rerank -> список цитат-джерел [{n,meeting_id,title,...,text}].
 
-    eq = embedder.encode_query(question)
+    Спільне ядро для answer_question (Phase 5) і agent.search_memory (Phase 6). Ізоляція форсована
+    store.search. Rerank ОПЦІЙНИЙ: на збій/відсутність ваг -> фолбек на порядок гібридного пошуку
+    (RRF уже ранжує) — пайплайн НЕ висне й завжди дає результат."""
+    eq = embedder.encode_query(query)
     sparse = (
         qm.SparseVector(indices=eq.sparse_indices, values=eq.sparse_values)
         if eq.sparse_indices else None
     )
     points = store.search(project_id, eq.dense, sparse, limit=settings.ask_search_limit)
     if not points:
-        return {"answer": ABSTAIN_TEXT, "citations": [], "abstained": True, "engine": engine}
+        return []
 
     passages = [(p.payload or {}).get("text", "") for p in points]
-    # Rerank ОПЦІЙНО: на збій/відсутність ваг -> фолбек на порядок гібридного пошуку (RRF уже
-    # ранжує). Так пайплайн НЕ висне й завжди дає відповідь; reranker лише покращує точність.
     ranked: list[tuple[int, float]] = []
     if reranker is not None:
         try:
-            ranked = reranker.rerank(question, passages, top_k=settings.ask_top_k)
+            ranked = reranker.rerank(query, passages, top_k=settings.ask_top_k)
         except Exception as exc:  # noqa: BLE001
             print(f"[ask] reranker недоступний ({type(exc).__name__}: {exc}) — фолбек на hybrid-порядок",
                   file=sys.stderr)
     if not ranked:
         ranked = [(i, 0.0) for i in range(min(settings.ask_top_k, len(passages)))]
 
-    ctx_lines: list[str] = []
     cites: list[dict] = []
     for n, (idx, score) in enumerate(ranked, 1):
         pl = points[idx].payload or {}
-        ctx_lines.append(
-            f"[#{n}] ({pl.get('title', '?')} · {pl.get('date', '?')} · {pl.get('speaker', '?')}): "
-            f"{pl.get('text', '')}"
-        )
         cites.append({
             "n": n,
             "meeting_id": pl.get("meeting_id"),
@@ -118,9 +111,24 @@ def answer_question(
             "start": pl.get("start"),
             "end": pl.get("end"),
             "score": round(float(score), 3),
-            "text": (pl.get("text") or "")[:500],
+            "text": pl.get("text") or "",
         })
+    return cites
 
+
+def answer_question(
+    project_id: str, question: str, *, embedder, store, reranker, engine: str | None = None,
+) -> dict:
+    """Питання -> {answer, citations[], abstained, engine}. Ізоляція форсована store.search."""
+    engine = engine or f"local:{settings.ask_model}"
+    cites = retrieve(project_id, question, embedder=embedder, store=store, reranker=reranker)
+    if not cites:
+        return {"answer": ABSTAIN_TEXT, "citations": [], "abstained": True, "engine": engine}
+
+    ctx_lines = [
+        f"[#{c['n']}] ({c.get('title', '?')} · {c.get('date', '?')} · {c.get('speaker', '?')}): {c['text']}"
+        for c in cites
+    ]
     answer = _generate(_build_prompt(question, ctx_lines), engine).strip()
     # Нормалізуємо детект абстенції (модель могла додати/прибрати крапку).
     abstained = answer.rstrip(".").strip().lower() == ABSTAIN_TEXT.rstrip(".").lower()
