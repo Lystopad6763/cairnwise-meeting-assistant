@@ -156,3 +156,25 @@ class Summary(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class AskResult(Base):
+    """Q&A до памʼяті проєкту (Phase 5 retrieval). Один рядок на запитання.
+
+    answer + citations заповнює host ask-воркер (embed→hybrid search→rerank→grounded LLM).
+    `abstained`=True, коли у памʼяті немає відповіді (grounding-чесність, не галюцинуємо).
+    `status` — простий РЯДОК (pending/ready/failed), як у Summary (без болю native-enum)."""
+    __tablename__ = "ask_results"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), index=True)
+    question: Mapped[str] = mapped_column(Text)
+    answer: Mapped[str] = mapped_column(Text, default="")
+    citations: Mapped[list[dict]] = mapped_column(JSONB, default=list)   # [{n,meeting_id,title,speaker,start,end,score,text}]
+    abstained: Mapped[bool] = mapped_column(Boolean, default=False)
+    engine: Mapped[str | None] = mapped_column(String(64), default=None)
+    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending | ready | failed
+    error: Mapped[str | None] = mapped_column(Text, default=None)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

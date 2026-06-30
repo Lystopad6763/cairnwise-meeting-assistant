@@ -128,6 +128,35 @@ export interface SummaryOut {
   updated_at: string;
 }
 
+// ---- Ask / retrieval (Фаза 5) — Q&A до памʼяті проєкту ----
+export type AskEngine = 'local' | 'cloud';
+export type AskJobStatus = 'pending' | 'ready' | 'failed';
+
+export interface AskCitation {
+  n: number;
+  meeting_id: string | null;
+  title: string | null;
+  date: string | null;
+  speaker: string | null;
+  start: number | null;
+  end: number | null;
+  score: number;
+  text: string;
+}
+
+export interface AskOut {
+  id: string;
+  project_id: string;
+  question: string;
+  answer: string;
+  citations: AskCitation[];
+  abstained: boolean;
+  engine: string | null;
+  status: AskJobStatus;
+  error: string | null;
+  created_at: string;
+}
+
 export type ApprovalKind = 'jira' | 'slack';
 export type ApprovalStatus =
   | 'proposed'

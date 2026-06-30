@@ -11,6 +11,8 @@ import { qk } from './queryKeys';
 import { queryClient } from './queryClient';
 import {
   ACTIVE_STATUSES,
+  type AskEngine,
+  type AskOut,
   type HealthOut,
   type MeetingOut,
   type MeetingStatus,
@@ -169,6 +171,30 @@ export function useSummary(
     enabled: !!meetingId && enabled,
     retry: (_count, err) => err.status !== 404,              // 404 = ще не запитували
     refetchInterval: (q) => (q.state.data?.status === 'pending' ? 3000 : false),
+  });
+}
+
+// ---------------------------------------------------------------- ask: request (enqueue) + poll
+export function useAsk(
+  projectId: string,
+): UseMutationResult<AskOut, ApiError, { question: string; engine: AskEngine }> {
+  const qc = useQueryClient();
+  return useMutation<AskOut, ApiError, { question: string; engine: AskEngine }>({
+    mutationFn: ({ question, engine }) => api.ask(projectId, question, engine),
+    onSuccess: (row) => {
+      qc.setQueryData(qk.ask(row.id), row);   // одразу pending -> запускає polling
+    },
+  });
+}
+
+// Опитуємо доки рушій працює (status=pending). 404 не ретраїмо.
+export function useAskResult(askId: string | null): UseQueryResult<AskOut, ApiError> {
+  return useQuery<AskOut, ApiError>({
+    queryKey: qk.ask(askId ?? '—'),
+    queryFn: () => api.getAsk(askId as string),
+    enabled: !!askId,
+    retry: (_n, err) => err.status !== 404,
+    refetchInterval: (q) => (q.state.data?.status === 'pending' ? 2500 : false),
   });
 }
 

@@ -1,4 +1,6 @@
 import type {
+  AskEngine,
+  AskOut,
   Citation,
   HealthOut,
   MeetingOut,
@@ -257,6 +259,19 @@ export const api = {
 
   getSummary(meetingId: string): Promise<SummaryOut> {
     return apiFetch<SummaryOut>(`/meetings/${encodeURIComponent(meetingId)}/summary`);
+  },
+
+  // Запит до памʼяті проєкту (Phase 5). Повертає AskResult(status=pending); відповідь — через getAsk.
+  ask(projectId: string, question: string, engine: AskEngine): Promise<AskOut> {
+    return apiFetch<AskOut>(`/projects/${encodeURIComponent(projectId)}/ask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, engine }),
+    });
+  },
+
+  getAsk(askId: string): Promise<AskOut> {
+    return apiFetch<AskOut>(`/ask/${encodeURIComponent(askId)}`);
   },
 };
 

@@ -47,5 +47,12 @@ class Settings(BaseSettings):
     chunk_max_gap_s: float = 45.0                # пауза > N сек -> межа теми (новий chunk)
     entity_model: str = "neural-chat"            # Ollama-модель витягання сутностей (reuse summarize)
 
+    # Retrieval / ask (Фаза 5): гібрид (bge-m3) -> reranker -> grounded LLM + abstention.
+    reranker_model: str = "BAAI/bge-reranker-v2-m3"
+    reranker_device: str = "cpu"                 # query-time: CPU, щоб не конкурувати з Ollama за GPU
+    ask_search_limit: int = 20                   # кандидатів із гібридного пошуку (до reranker)
+    ask_top_k: int = 6                           # лишити після reranker -> у контекст LLM
+    ask_model: str = "neural-chat"               # дефолтний локальний рушій відповіді
+
 
 settings = Settings()

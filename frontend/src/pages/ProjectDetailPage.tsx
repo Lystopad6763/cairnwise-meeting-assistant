@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 
 import { RecordMeeting } from '../components/RecordMeeting';
+import { AskPanel } from '../components/AskPanel';
 
 import { cn } from '../lib/cn';
 import {
@@ -700,6 +701,9 @@ export function ProjectDetailPage() {
 
       {/* Upload */}
       {projectId && <UploadSection projectId={projectId} />}
+
+      {/* Ask the project memory (Phase 5) */}
+      {projectId && <AskPanel projectId={projectId} />}
 
       {/* Meetings table */}
       {projectId && <MeetingsSection projectId={projectId} />}

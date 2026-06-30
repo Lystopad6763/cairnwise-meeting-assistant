@@ -17,9 +17,10 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import engine, get_db, init_db
-from app.jobs import enqueue_summary, enqueue_transcription
+from app.jobs import enqueue_ask, enqueue_summary, enqueue_transcription
 from app.models import (
     ActionItem,
+    AskResult,
     Decision,
     Meeting,
     MeetingStatus,
@@ -344,6 +345,61 @@ def get_summary(meeting_id: str, db: Session = Depends(get_db)) -> Summary:
     if summ is None:
         raise HTTPException(status_code=404, detail="резюме ще не генерували")
     return summ
+
+
+# ---------------------------------------------------------------- ask (Phase 5: Q&A до памʼяті)
+class AskIn(BaseModel):
+    question: str
+    engine: Literal["local", "cloud"] = "local"
+
+
+class AskOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    project_id: str
+    question: str
+    answer: str
+    citations: list[dict]
+    abstained: bool
+    engine: str | None
+    status: str                        # pending | ready | failed
+    error: str | None
+    created_at: datetime
+
+
+@app.post("/projects/{project_id}/ask", response_model=AskOut, status_code=202)
+def ask_memory(project_id: str, payload: AskIn, db: Session = Depends(get_db)) -> AskResult:
+    """Поставити запит до памʼяті проєкту в чергу. Важка робота (embed → hybrid search → rerank →
+    grounded LLM + abstention) — на host ask-воркері; тут лише створюємо рядок + enqueue.
+    Відповідь читається через GET /ask/{id} (polling)."""
+    if db.get(Project, project_id) is None:
+        raise HTTPException(status_code=404, detail="project not found")
+    q = (payload.question or "").strip()
+    if not q:
+        raise HTTPException(status_code=422, detail="порожнє питання")
+    if payload.engine == "cloud" and not settings.openai_api_key:
+        raise HTTPException(status_code=400, detail="хмарний режим недоступний: OPENAI_API_KEY не задано")
+
+    engine_label = (f"cloud:{settings.summary_model_cloud}" if payload.engine == "cloud"
+                    else f"local:{settings.ask_model}")
+    row = AskResult(project_id=project_id, question=q, engine=engine_label, status="pending")
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    try:
+        enqueue_ask(row.id)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=503, detail=f"черга недоступна: {exc}")
+    return row
+
+
+@app.get("/ask/{ask_id}", response_model=AskOut)
+def get_ask(ask_id: str, db: Session = Depends(get_db)) -> AskResult:
+    """Стан/результат запиту до памʼяті (polling до status=ready/failed)."""
+    row = db.get(AskResult, ask_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="запит не знайдено")
+    return row
 
 
 @app.get("/projects/{project_id}/meetings", response_model=list[MeetingOut])
