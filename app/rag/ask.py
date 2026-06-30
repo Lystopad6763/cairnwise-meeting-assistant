@@ -10,6 +10,7 @@ embedder/store/reranker — host-only інстанси (передає ask_worke
 from __future__ import annotations
 
 import json
+import sys
 import urllib.request
 
 from qdrant_client import models as qm
@@ -88,7 +89,17 @@ def answer_question(
         return {"answer": ABSTAIN_TEXT, "citations": [], "abstained": True, "engine": engine}
 
     passages = [(p.payload or {}).get("text", "") for p in points]
-    ranked = reranker.rerank(question, passages, top_k=settings.ask_top_k)
+    # Rerank ОПЦІЙНО: на збій/відсутність ваг -> фолбек на порядок гібридного пошуку (RRF уже
+    # ранжує). Так пайплайн НЕ висне й завжди дає відповідь; reranker лише покращує точність.
+    ranked: list[tuple[int, float]] = []
+    if reranker is not None:
+        try:
+            ranked = reranker.rerank(question, passages, top_k=settings.ask_top_k)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[ask] reranker недоступний ({type(exc).__name__}: {exc}) — фолбек на hybrid-порядок",
+                  file=sys.stderr)
+    if not ranked:
+        ranked = [(i, 0.0) for i in range(min(settings.ask_top_k, len(passages)))]
 
     ctx_lines: list[str] = []
     cites: list[dict] = []
